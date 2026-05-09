@@ -68,3 +68,19 @@ SHADE_RADIUS_M = 50.0           # Radius used for solid-angle shade fraction che
 # ILP optimiser
 # ---------------------------------------------------------------------------
 MARGINAL_PENALTY = 1.5     # Weight multiplier for marginal-solar candidates
+
+# ---------------------------------------------------------------------------
+# Site (Green-Wood Cemetery, Brooklyn NY)
+# ---------------------------------------------------------------------------
+# OSM relation ID — fetched live from Overpass each run (cached after first fetch).
+CEMETERY_RELATION_ID = 1370699
+
+# Bounding box (south, west, north, east) — used by tests; the live boundary
+# polygon is what's actually used for grid clipping and coverage reporting.
+CEMETERY_BBOX = (40.644250, -74.002056, 40.659556, -73.980500)
+
+# If you want to override the OSM-fetched boundary (e.g. to refine the perimeter
+# or carve out a sub-area), populate this list with (lon, lat) tuples in order.
+# When non-empty (≥ 3 points) it replaces the OSM boundary entirely. Leave empty
+# to use the live OSM polygon.
+BOUNDARY_OVERRIDE_POLYGON: list[tuple[float, float]] = []

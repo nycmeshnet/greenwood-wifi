@@ -13,12 +13,14 @@ import overpy
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
+from constants import CEMETERY_RELATION_ID, BOUNDARY_OVERRIDE_POLYGON
+
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 
-# Green-Wood Cemetery, Brooklyn NY — OSM relation ID 1370699
-# Confirmed boundary corners (WGS84 decimal degrees, lon/lat for shapely):
-GREENWOOD_RELATION_ID = 1370699
-GREENWOOD_POLYGON = [
+# Crude 6-vertex Green-Wood polygon — used only as a last-resort fallback if
+# Overpass is unreachable AND no override is configured. Refine the boundary
+# via BOUNDARY_OVERRIDE_POLYGON in constants.py rather than editing this.
+_FALLBACK_POLYGON = [
     (-73.988389, 40.659194),
     (-73.995194, 40.659556),
     (-74.002056, 40.652944),
@@ -26,7 +28,6 @@ GREENWOOD_POLYGON = [
     (-73.980500, 40.647750),
     (-73.981917, 40.655278),
 ]
-GREENWOOD_BBOX = (40.644250, -74.002056, 40.659556, -73.980500)  # S, W, N, E
 
 # Overpass endpoints tried in order; first success wins.
 _ENDPOINTS = [
@@ -131,7 +132,20 @@ def _ways_to_polygon(relation_result, relation) -> Polygon | None:
 # ---------------------------------------------------------------------------
 
 def fetch_cemetery_boundary(no_cache: bool = False) -> Polygon:
-    """Return the Green-Wood Cemetery boundary as a Shapely Polygon (lon/lat)."""
+    """Return the cemetery boundary as a Shapely Polygon (lon/lat).
+
+    Resolution order:
+      1. BOUNDARY_OVERRIDE_POLYGON in constants.py, if it has ≥ 3 points
+      2. Cached OSM polygon (unless --no-cache)
+      3. Live Overpass query for the cemetery relation
+      4. Hardcoded 6-vertex fallback (last resort)
+    """
+    if len(BOUNDARY_OVERRIDE_POLYGON) >= 3:
+        poly = Polygon(BOUNDARY_OVERRIDE_POLYGON)
+        print(f"Cemetery boundary from BOUNDARY_OVERRIDE_POLYGON "
+              f"({len(BOUNDARY_OVERRIDE_POLYGON)} vertices).")
+        return poly
+
     if not no_cache:
         cached = _load_boundary()
         if cached is not None:
@@ -140,7 +154,7 @@ def fetch_cemetery_boundary(no_cache: bool = False) -> Polygon:
 
     query = f"""
     [out:json][timeout:60];
-    relation({GREENWOOD_RELATION_ID});
+    relation({CEMETERY_RELATION_ID});
     out geom;
     """
     try:
@@ -153,9 +167,9 @@ def fetch_cemetery_boundary(no_cache: bool = False) -> Polygon:
                 _save_boundary(poly)
                 return poly
     except Exception as exc:
-        print(f"Relation fetch failed ({exc}), using confirmed polygon fallback.")
+        print(f"Relation fetch failed ({exc}), using hardcoded fallback polygon.")
 
-    poly = Polygon(GREENWOOD_POLYGON)
+    poly = Polygon(_FALLBACK_POLYGON)
     _save_boundary(poly)
     return poly
 

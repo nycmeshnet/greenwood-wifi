@@ -18,7 +18,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np
 from pyproj import Transformer
 from scipy.spatial import cKDTree
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 from shapely.ops import transform as shapely_transform
 
 from data.osm import (
@@ -37,13 +37,16 @@ from data.solar_irradiance import (
 from data.interference import fetch_wigle_density
 from models.terrain import TerrainModel, to_utm, to_wgs84
 from models.rf import effective_range_m
-from models.power import daily_harvest_wh, solar_status, DEMAND_WH_PER_DAY
+from models.power import (
+    daily_harvest_wh, solar_status, DEMAND_WH_PER_DAY,
+    best_panel_azimuth, facing_label,
+)
 from optimize.placer import optimize_placement
 from output.writer import write_placement_json, write_summary, write_kml
 from constants import (
     FT_PER_M,
     CANDIDATE_SPACING_M, TEST_SPACING_M, ILP_TEST_SPACING_M, PATH_BUFFER_M,
-    PANEL_FACING, PANEL_AZIMUTH_DEG, PANEL_TILT_DEG,
+    PANEL_TILT_DEG,
 )
 
 
@@ -276,6 +279,16 @@ def main():
     print("\n=== Building Terrain Model ===")
     terrain = TerrainModel(elevation, elev_transform, trees, buildings)
 
+    # Project boundary to UTM once for circle/polygon intersection downstream
+    # (used to fairly score coverage efficiency for APs near the perimeter).
+    boundary_utm = Polygon(
+        [to_utm(lon, lat) for lon, lat in boundary.exterior.coords],
+        holes=[
+            [to_utm(lon, lat) for lon, lat in interior.coords]
+            for interior in boundary.interiors
+        ],
+    )
+
     # ------------------------------------------------------------------
     # 3. Generate candidate and test-point grids
     # ------------------------------------------------------------------
@@ -302,10 +315,18 @@ def main():
     t_solar = time.time()
     candidate_meta = []
     for lat, lon in candidates:
-        shade = terrain.shade_fraction(lat, lon)
+        dir_shade = terrain.shade_by_azimuth(lat, lon)
+        shade = float(min(dir_shade.sum(), 1.0))
         harvest = daily_harvest_wh(design_ghi, shade)
         status = solar_status(harvest)
-        candidate_meta.append({"shade": shade, "harvest": harvest, "status": status})
+        azimuth, sky_score = best_panel_azimuth(dir_shade, latitude_deg=lat)
+        candidate_meta.append({
+            "shade": shade,
+            "harvest": harvest,
+            "status": status,
+            "panel_azimuth_deg": round(azimuth, 1),
+            "panel_sky_score": round(sky_score, 3),
+        })
 
     viable_idx = [i for i, m in enumerate(candidate_meta) if m["status"] != "unviable"]
     viable_candidates = [candidates[i] for i in viable_idx]
@@ -455,11 +476,17 @@ def main():
             overlap = 0
         overlap_pct = 100.0 * overlap / n_covered if n_covered else 0.0
 
-        # Efficiency: covered area vs theoretical open-space circle
-        rated_circle_area_ft2 = 3.14159 * primary_range_ft ** 2
+        # Efficiency: covered area vs the *reachable* open-space circle, where
+        # "reachable" = rated-range circle ∩ cemetery boundary. Clipping to the
+        # boundary stops APs near the perimeter from looking artificially
+        # underutilised when half their rated circle lies outside the site.
+        ap_circle_utm = Point(*ap_utms[idx]).buffer(primary_range_m)
+        rated_area_m2 = ap_circle_utm.intersection(boundary_utm).area
+        rated_circle_area_ft2 = max(rated_area_m2 * (FT_PER_M ** 2), 1.0)
         covered_area_ft2 = n_covered * (TEST_SPACING_M * FT_PER_M) ** 2
         efficiency_pct = min(100.0, 100.0 * covered_area_ft2 / rated_circle_area_ft2)
 
+        ap_azimuth = meta["panel_azimuth_deg"]
         aps.append({
             "name": name,
             "lat": round(ap_lat, 6),
@@ -470,9 +497,10 @@ def main():
             "shade_pct": round(meta["shade"] * 100.0, 1),
             "coverage_efficiency_pct": round(efficiency_pct, 1),
             "overlap_pct": round(overlap_pct, 1),
-            "panel_facing": PANEL_FACING,
-            "panel_azimuth_deg": PANEL_AZIMUTH_DEG,
+            "panel_facing": facing_label(ap_azimuth),
+            "panel_azimuth_deg": ap_azimuth,
             "panel_tilt_deg": PANEL_TILT_DEG,
+            "panel_sky_score": meta["panel_sky_score"],
         })
 
     # ------------------------------------------------------------------

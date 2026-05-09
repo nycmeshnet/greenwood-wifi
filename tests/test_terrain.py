@@ -61,6 +61,53 @@ class TestShadeFunction:
         assert not model.building_mask.any(), "No buildings should mean empty mask"
 
 
+class TestDirectionalShade:
+    def test_no_trees_returns_zero_array(self):
+        model = _make_model()
+        buckets = model.shade_by_azimuth(40.655, -73.995, n_buckets=24)
+        assert buckets.shape == (24,)
+        assert (buckets == 0).all()
+
+    def test_north_tree_lands_in_north_bucket(self):
+        # Tree ~25 m due north of the AP (well inside the 50 m shade radius).
+        ap_lat, ap_lon = 40.655, -73.995
+        north_lat = ap_lat + 25.0 / 111_320.0
+        trees = gpd.GeoDataFrame(
+            [{"geometry": Point(ap_lon, north_lat), "canopy_radius_m": 6.0, "height_m": 15.0}],
+            crs="EPSG:4326",
+        )
+        model = _make_model(trees_gdf=trees)
+        buckets = model.shade_by_azimuth(ap_lat, ap_lon, n_buckets=24)
+        assert buckets.argmax() == 0, f"north tree should land in bucket 0, got {buckets.argmax()}"
+
+    def test_south_tree_lands_in_south_bucket(self):
+        ap_lat, ap_lon = 40.655, -73.995
+        south_lat = ap_lat - 25.0 / 111_320.0
+        trees = gpd.GeoDataFrame(
+            [{"geometry": Point(ap_lon, south_lat), "canopy_radius_m": 6.0, "height_m": 15.0}],
+            crs="EPSG:4326",
+        )
+        model = _make_model(trees_gdf=trees)
+        buckets = model.shade_by_azimuth(ap_lat, ap_lon, n_buckets=24)
+        # Bucket 12 of 24 is centred on 180° (south).
+        assert buckets.argmax() == 12, f"south tree should land in bucket 12, got {buckets.argmax()}"
+
+    def test_buckets_clipped_to_one(self):
+        # Many overlapping trees in one direction should not exceed 1.0 in any bucket.
+        ap_lat, ap_lon = 40.655, -73.995
+        trees = gpd.GeoDataFrame(
+            [
+                {"geometry": Point(ap_lon, ap_lat + d / 111_320.0),
+                 "canopy_radius_m": 6.0, "height_m": 15.0}
+                for d in (1.0, 2.0, 3.0, 4.0, 5.0)  # all very close, all north
+            ],
+            crs="EPSG:4326",
+        )
+        model = _make_model(trees_gdf=trees)
+        buckets = model.shade_by_azimuth(ap_lat, ap_lon, n_buckets=24)
+        assert (buckets <= 1.0 + 1e-9).all()
+
+
 class TestBatchLOS:
     def test_output_shape_matches_input(self):
         model = _make_model()

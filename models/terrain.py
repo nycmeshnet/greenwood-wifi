@@ -107,6 +107,54 @@ class TerrainModel:
         c = float(np.clip(c, 0, self.elev.shape[1] - 1))
         return float(scipy.ndimage.map_coordinates(self.elev, [[r], [c]], order=1)[0])
 
+    def shade_by_azimuth(
+        self,
+        lat: float,
+        lon: float,
+        n_buckets: int = 24,
+        radius_m: float = SHADE_RADIUS_M,
+    ) -> np.ndarray:
+        """
+        Directional shade per compass bucket as seen from (lat, lon).
+
+        Returns an array of length ``n_buckets`` where bucket index ``i``
+        represents the azimuth sector centred on ``i × 360°/n_buckets``
+        (0° = north, 90° = east, 180° = south, 270° = west). Each tree's
+        solid-angle contribution r²/(r²+d²) is assigned to the bucket
+        matching its bearing from the AP. Values are clipped to [0, 1].
+        """
+        buckets = np.zeros(n_buckets, dtype=np.float64)
+        if self.trees_gdf is None or self.trees_gdf.empty:
+            return buckets
+
+        pt = Point(lon, lat)
+        rad_deg = radius_m / 111_320.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            nearby = self.trees_gdf[self.trees_gdf.geometry.distance(pt) < rad_deg]
+        if nearby.empty:
+            return buckets
+
+        m_per_deg_lat = 111_320.0
+        m_per_deg_lon = 111_320.0 * np.cos(np.radians(lat))
+        bucket_width = 360.0 / n_buckets
+
+        for _, row in nearby.iterrows():
+            r = float(row.get("canopy_radius_m") or 6.0)
+            dlat = (row.geometry.y - lat) * m_per_deg_lat
+            dlon = (row.geometry.x - lon) * m_per_deg_lon
+            d2 = dlat * dlat + dlon * dlon
+            if d2 == 0.0:
+                # Tree directly overhead — spread contribution evenly across all buckets
+                buckets += 1.0 / n_buckets
+                continue
+            # Compass bearing from AP to tree: 0° = north, 90° = east
+            bearing = (np.degrees(np.arctan2(dlon, dlat)) + 360.0) % 360.0
+            idx = int((bearing + bucket_width / 2.0) // bucket_width) % n_buckets
+            buckets[idx] += r * r / (r * r + d2)
+
+        return np.minimum(buckets, 1.0)
+
     def shade_fraction(self, lat: float, lon: float, radius_m: float = SHADE_RADIUS_M) -> float:
         """
         Fraction of sky blocked by nearby tree crowns (solid-angle model).
