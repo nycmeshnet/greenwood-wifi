@@ -47,7 +47,6 @@ from constants import (
     FT_PER_M,
     CANDIDATE_SPACING_M, TEST_SPACING_M, ILP_TEST_SPACING_M, PATH_BUFFER_M,
     PANEL_TILT_DEG,
-    OVERLAP_THRESHOLD_PCT, DOWNGRADE_RANGE_THRESHOLD,
 )
 
 
@@ -459,33 +458,6 @@ def main():
             )
             selected_coverage[rank, near] = cov
 
-    # ------------------------------------------------------------------
-    # Prune APs whose coverage is already > OVERLAP_THRESHOLD_PCT served by
-    # neighbours (single-pass, highest-overlap APs removed first).
-    # ------------------------------------------------------------------
-    overlap_pre = np.zeros(n_sel)
-    for rank in range(n_sel):
-        ap_cov = selected_coverage[rank]
-        n_cov = int(ap_cov.sum())
-        if n_cov == 0:
-            continue
-        others = [r for r in range(n_sel) if r != rank]
-        if others:
-            other_cov = selected_coverage[others].any(axis=0)
-            overlap_pre[rank] = 100.0 * int((ap_cov & other_cov).sum()) / n_cov
-
-    keep_mask = overlap_pre <= OVERLAP_THRESHOLD_PCT
-    n_pruned = int((~keep_mask).sum())
-    if n_pruned:
-        print(f"  Pruned {n_pruned} APs with >{OVERLAP_THRESHOLD_PCT:.0f}% overlap "
-              f"({n_sel - n_pruned} remain)")
-        selected_idx     = [selected_idx[r] for r in range(n_sel) if keep_mask[r]]
-        selected_coverage = selected_coverage[keep_mask]
-        n_sel            = len(selected_idx)
-        sel_lats         = ap_lats[selected_idx]
-        sel_lons         = ap_lons[selected_idx]
-        sel_utms         = ap_utms[selected_idx]
-
     aps = []
     for rank, idx in enumerate(selected_idx):
         ap_lat, ap_lon = viable_candidates[idx]
@@ -495,7 +467,7 @@ def main():
         ap_cov = selected_coverage[rank]
         n_covered = int(ap_cov.sum())
 
-        # Overlap: recomputed on the pruned set
+        # Overlap: how many of this AP's covered points are also covered by another selected AP
         others = [r for r in range(n_sel) if r != rank]
         if others:
             other_cov = selected_coverage[others].any(axis=0)
@@ -503,16 +475,6 @@ def main():
         else:
             overlap = 0
         overlap_pct = 100.0 * overlap / n_covered if n_covered else 0.0
-
-        # Effective range: farthest covered test point from this AP
-        covered_indices = np.where(ap_cov)[0]
-        if len(covered_indices):
-            dists_m = np.linalg.norm(
-                rep_utm[covered_indices] - sel_utms[rank], axis=1
-            )
-            effective_range_ft = int(round(float(dists_m.max()) * FT_PER_M))
-        else:
-            effective_range_ft = 0
 
         # Efficiency: covered area vs the *reachable* open-space circle, where
         # "reachable" = rated-range circle ∩ cemetery boundary. Clipping to the
@@ -534,7 +496,6 @@ def main():
             "harvest_wh": round(meta["harvest"], 1),
             "shade_pct": round(meta["shade"] * 100.0, 1),
             "coverage_efficiency_pct": round(efficiency_pct, 1),
-            "effective_range_ft": effective_range_ft,
             "overlap_pct": round(overlap_pct, 1),
             "panel_facing": facing_label(ap_azimuth),
             "panel_azimuth_deg": ap_azimuth,
@@ -556,7 +517,6 @@ def main():
         primary_range_ft,
         "output/summary.md",
         shoulder_months_list=off_season,
-        n_pruned=n_pruned,
     )
 
     total_covered = int(selected_coverage.any(axis=0).sum())
