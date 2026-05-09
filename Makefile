@@ -11,7 +11,7 @@ help:
 	@echo "  make venv      Create virtual environment and install dependencies"
 	@echo "  make install   Install/update dependencies into existing venv"
 	@echo "  make test      Run unit tests"
-	@echo "  make run       Run optimizer with default ranges (500 ft / 260 ft)"
+	@echo "  make run       Run optimizer with default ranges (2000 ft / 1250 ft)"
 	@echo "  make clean     Remove venv and cached data"
 
 venv:
@@ -28,7 +28,7 @@ test:
 	$(PYTEST) tests/ -v
 
 run:
-	$(MAIN) --range-2g 500 --range-5g 260
+	$(MAIN)
 
 clean:
 	rm -rf $(VENV) data/cache/

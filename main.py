@@ -236,6 +236,11 @@ def main():
     primary_freq, primary_range_m = bands_m[0]   # 2.4 GHz — longest range
     primary_range_ft = primary_range_m * FT_PER_M
 
+    # At large ranges the constraint matrix becomes dense (density ≈ π·r²/area).
+    # Increasing grid spacing reduces problem size as spacing², keeping IPM tractable.
+    adaptive_cand_m = max(CANDIDATE_SPACING_M, primary_range_m / 10)
+    adaptive_ilp_m  = max(ILP_TEST_SPACING_M,  primary_range_m / 10)
+
     print(f"\n=== Green-Wood WiFi Placement Optimizer ===")
     print(f"Bands: {[(f'{f} GHz', f'{r:.0f} ft') for f, r in bands_ft]}")
     print(f"Coverage mode: {args.coverage}\n")
@@ -275,15 +280,17 @@ def main():
     # 3. Generate candidate and test-point grids
     # ------------------------------------------------------------------
     print("\n=== Generating Grids ===")
-    candidates = generate_grid(boundary, CANDIDATE_SPACING_M)
+    candidates = generate_grid(boundary, adaptive_cand_m)
 
     if args.coverage == "paths":
         report_points = generate_path_grid(paths, boundary, TEST_SPACING_M)
-        ilp_points    = generate_path_grid(paths, boundary, ILP_TEST_SPACING_M)
+        ilp_points    = generate_path_grid(paths, boundary, adaptive_ilp_m)
     else:
         report_points = generate_grid(boundary, TEST_SPACING_M)
-        ilp_points    = generate_grid(boundary, ILP_TEST_SPACING_M)
+        ilp_points    = generate_grid(boundary, adaptive_ilp_m)
 
+    print(f"Grid spacing : candidates {adaptive_cand_m:.0f} m  "
+          f"ILP {adaptive_ilp_m:.0f} m  report {TEST_SPACING_M} m")
     print(f"Candidates: {len(candidates):,}  "
           f"ILP test grid: {len(ilp_points):,}  "
           f"Report grid: {len(report_points):,}")

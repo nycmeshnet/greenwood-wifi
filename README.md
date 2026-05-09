@@ -30,22 +30,25 @@ Given the rated range of an access point on each frequency band, the tool:
 ## Usage
 
 ```bash
-# Quick start using Makefile (runs 500 ft / 260 ft defaults)
+# Quick start using Makefile (2000 ft / 1250 ft defaults)
 make run
 
 # Or with venv active:
 
-# Minimum — 2.4 GHz and 5 GHz only
+# Default ranges (2000 ft 2.4 GHz / 1250 ft 5 GHz)
+python3 main.py
+
+# Override ranges
 python3 main.py --range-2g 500 --range-5g 260
 
 # With 6 GHz tri-band AP
-python3 main.py --range-2g 500 --range-5g 260 --range-6g 200
+python3 main.py --range-6g 200
 
 # Cover walkable paths only (faster, fewer APs)
-python3 main.py --range-2g 500 --range-5g 260 --coverage paths
+python3 main.py --coverage paths
 
 # Re-fetch all external data
-python3 main.py --range-2g 500 --range-5g 260 --no-cache
+python3 main.py --no-cache
 ```
 
 All range values are in **feet**.
