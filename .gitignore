@@ -1,0 +1,18 @@
+# Generated outputs — regenerated on every run
+output/ap_placement.json
+output/ap_placement.kml
+output/summary.md
+
+# Cached external data — fetched automatically on first run
+data/cache/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.env
