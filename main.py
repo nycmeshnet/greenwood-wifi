@@ -315,7 +315,8 @@ def main():
           f"  ({n_workers} threads)")
 
     done_count = 0
-    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+    pool = ThreadPoolExecutor(max_workers=n_workers)
+    try:
         futures = {
             pool.submit(
                 _candidate_coverage,
@@ -341,6 +342,12 @@ def main():
                     f"({elapsed:.0f}s elapsed, ~{eta:.0f}s remaining)    ",
                     end="\r",
                 )
+    except KeyboardInterrupt:
+        pool.shutdown(wait=False, cancel_futures=True)
+        print("\nInterrupted.")
+        raise SystemExit(1)
+    else:
+        pool.shutdown(wait=False)
 
     print(f"\n  Coverage matrix: {coverage.sum():,} covered pairs  "
           f"({time.time()-t_cov:.1f}s total)")
