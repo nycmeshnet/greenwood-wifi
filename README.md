@@ -30,7 +30,10 @@ Given the rated range of an access point on each frequency band, the tool:
 ## Usage
 
 ```bash
-pip install -r requirements.txt
+# Quick start using Makefile (runs 500 ft / 260 ft defaults)
+make run
+
+# Or with venv active:
 
 # Minimum — 2.4 GHz and 5 GHz only
 python3 main.py --range-2g 500 --range-5g 260
@@ -57,9 +60,24 @@ All range values are in **feet**.
 
 The KML pins are colour-coded: **green** = solar viable, **yellow** = marginal (may need a better-sited panel).
 
+## Setup
+
+```bash
+# One-time: create venv and install dependencies
+make venv
+
+# Or manually:
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt pytest
+```
+
 ## Running the tests
 
 ```bash
+make test
+
+# Or manually (with venv active):
 python3 -m pytest tests/ -v
 ```
 
