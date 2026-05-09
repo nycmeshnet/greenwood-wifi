@@ -6,6 +6,11 @@ output/summary.md
 # Cached external data — fetched automatically on first run
 data/cache/
 
+# Virtual environments
+venv/
+.venv/
+env/
+
 # Python
 __pycache__/
 **/__pycache__/
