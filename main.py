@@ -494,8 +494,8 @@ def main():
     total_covered = int(selected_coverage.any(axis=0).sum())
     print(
         f"\nDone! {len(aps)} APs placed, "
-        f"{total_covered:,}/{len(test_points):,} test points covered "
-        f"({100*total_covered/len(test_points):.1f}%)."
+        f"{total_covered:,}/{len(report_points):,} test points covered "
+        f"({100*total_covered/len(report_points):.1f}%)."
     )
     print("  output/ap_placement.json")
     print("  output/ap_placement.kml  ← open in Google Earth")
