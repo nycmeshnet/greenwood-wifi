@@ -2,8 +2,10 @@
 
 HiGHS accepts the coverage matrix as a scipy sparse matrix directly, avoiding
 the per-constraint Python loop that made the old PuLP/CBC approach slow.
+The solve runs in a subprocess so Ctrl+C kills it immediately.
 """
 
+import multiprocessing as mp
 import os
 import time
 import warnings
@@ -14,6 +16,35 @@ from scipy.sparse import csc_matrix
 
 from constants import MARGINAL_PENALTY
 
+
+# ---------------------------------------------------------------------------
+# Subprocess worker — runs the actual HiGHS call in a child process
+# ---------------------------------------------------------------------------
+
+def _milp_worker(queue, c, data, indices, indptr, shape, n_candidates):
+    """Entry point for the solver subprocess."""
+    A = csc_matrix((data, indices, indptr), shape=shape)
+    n_threads = os.cpu_count() or 1
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Unrecognized options", RuntimeWarning)
+        result = milp(
+            c,
+            constraints=LinearConstraint(A, lb=1.0, ub=np.inf),
+            integrality=np.ones(n_candidates, dtype=np.int8),
+            bounds=Bounds(lb=0, ub=1),
+            options={
+                "threads": n_threads,
+                "solver": "ipm",
+                "mip_heuristic_effort": 1.0,
+                "presolve": True,
+            },
+        )
+    queue.put(result)
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def optimize_placement(
     coverage_matrix: np.ndarray,
@@ -34,8 +65,8 @@ def optimize_placement(
     List of selected candidate indices.
     """
     n_candidates, n_test = coverage_matrix.shape
-    print(f"  Variables : {n_candidates} candidates")
-    print(f"  Rows      : {n_test} test points")
+    print(f"  Variables : {n_candidates:,} candidates")
+    print(f"  Rows      : {n_test:,} test points")
 
     t0 = time.time()
 
@@ -48,36 +79,42 @@ def optimize_placement(
     has_coverage = coverage_matrix.any(axis=0)
     n_uncovered = int((~has_coverage).sum())
     if n_uncovered:
-        print(f"  Warning   : {n_uncovered} test points have no covering candidate")
+        print(f"  Warning   : {n_uncovered:,} test points have no covering candidate")
 
     # Constraint matrix A: each test point must be covered by ≥ 1 AP.
     # Shape (n_constrained, n_candidates) stored column-sparse for HiGHS.
     A = csc_matrix(coverage_matrix[:, has_coverage].T.astype(np.float64))
     n_constrained = A.shape[0]
     nnz = A.nnz
-    print(f"  Constraints: {n_constrained}  non-zeros: {nnz:,}  "
+    print(f"  Constraints: {n_constrained:,}  non-zeros: {nnz:,}  "
           f"({time.time()-t0:.1f}s to build)")
 
+    # Rough time estimate: IPM set-cover scales with constraints × sqrt(variables).
+    # Multiply by ~20 for the MIP branch-and-bound overhead.
+    est_lo = max(30, int(n_constrained * (n_candidates ** 0.5) / 25_000))
+    est_hi = est_lo * 6
     n_threads = os.cpu_count() or 1
-    t1 = time.time()
-    print(f"  Solving with HiGHS ({n_threads} threads, IPM)...", flush=True)
+    print(f"  Est. solve : {est_lo}–{est_hi}s  "
+          f"({n_threads} threads, IPM)  Press Ctrl+C to abort", flush=True)
 
-    # threads/solver/mip_heuristic_effort are valid HiGHS options that scipy passes
-    # through verbatim but doesn't list in its own API, triggering a RuntimeWarning.
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", "Unrecognized options", RuntimeWarning)
-        result = milp(
-            c,
-            constraints=LinearConstraint(A, lb=1.0, ub=np.inf),
-            integrality=np.ones(n_candidates, dtype=np.int8),
-            bounds=Bounds(lb=0, ub=1),
-            options={
-                "threads": n_threads,
-                "solver": "ipm",
-                "mip_heuristic_effort": 1.0,
-                "presolve": True,
-            },
-        )
+    # Run HiGHS in a subprocess so Ctrl+C terminates it immediately.
+    ctx = mp.get_context("fork")
+    queue = ctx.Queue()
+    proc = ctx.Process(
+        target=_milp_worker,
+        args=(queue, c, A.data, A.indices, A.indptr, A.shape, n_candidates),
+        daemon=True,
+    )
+    proc.start()
+    t1 = time.time()
+    try:
+        result = queue.get()   # blocks until the subprocess puts a result
+    except KeyboardInterrupt:
+        proc.terminate()
+        proc.join()
+        print("\nInterrupted.")
+        raise SystemExit(1)
+    proc.join()
 
     elapsed = time.time() - t1
 
@@ -85,7 +122,7 @@ def optimize_placement(
         selected = [i for i, v in enumerate(result.x) if v > 0.5]
         covered = _covered_count(coverage_matrix, selected)
         print(
-            f"  Optimal   : {len(selected)} APs cover {covered}/{n_test} "
+            f"  Optimal   : {len(selected)} APs cover {covered:,}/{n_test:,} "
             f"test points  ({elapsed:.1f}s)"
         )
         return selected

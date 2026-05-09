@@ -2,16 +2,18 @@
 
 Usage
 -----
-    python main.py --range-2g 500 --range-5g 260
-    python main.py --range-2g 500 --range-5g 260 --range-6g 200 --coverage paths
+    python main.py                                   # uses built-in defaults
+    python main.py --range-2g 2000 --range-5g 1250
+    python main.py --range-2g 2000 --range-5g 1250 --range-6g 800 --coverage paths
     python main.py --help
 """
 
 import argparse
+import multiprocessing as mp
 import os
 import shutil
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 from pyproj import Transformer
@@ -46,32 +48,59 @@ from constants import (
 
 
 # ---------------------------------------------------------------------------
-# Coverage matrix worker (called from ThreadPoolExecutor)
+# Coverage matrix — fork-based process pool with shared state
 # ---------------------------------------------------------------------------
+# These are set in main() before the ProcessPoolExecutor is created.
+# fork() copies the parent's address space (copy-on-write), so child
+# processes inherit these without any serialisation overhead.
+_mp_terrain = None
+_mp_ilp_lats = _mp_ilp_lons = _mp_ilp_utm = None
+_mp_ap_lats = _mp_ap_lons = _mp_ap_utms = None
+_mp_all_nearby = _mp_bands_m = None
+
+
+def _coverage_chunk(start_i: int, end_i: int):
+    """Process candidates[start_i:end_i] using fork-inherited globals."""
+    results = []
+    for i in range(start_i, end_i):
+        nearby_raw = _mp_all_nearby[i]
+        if not nearby_raw:
+            results.append((i, np.array([], dtype=int), np.array([], dtype=bool)))
+            continue
+        nearby_idx = np.array(nearby_raw, dtype=int)
+        ap_utm = _mp_ap_utms[i]
+
+        nl = _mp_ilp_lats[nearby_idx]
+        no = _mp_ilp_lons[nearby_idx]
+        los_clear, veg_path = _mp_terrain.batch_los(
+            _mp_ap_lats[i], _mp_ap_lons[i], nl, no
+        )
+        distances_m = np.linalg.norm(_mp_ilp_utm[nearby_idx] - ap_utm, axis=1)
+
+        covered = np.zeros(len(nearby_idx), dtype=bool)
+        for freq, rated_m in _mp_bands_m:
+            eff_range = effective_range_m(rated_m, freq, veg_path)
+            covered |= los_clear & (distances_m <= eff_range)
+
+        results.append((i, nearby_idx, covered))
+    return results
+
 
 def _candidate_coverage(
     i, ap_lat, ap_lon, nearby_idx, test_lats, test_lons,
     test_utm, ap_utm, bands_m, terrain,
 ):
-    """Compute which test points are covered by a single AP candidate.
-
-    Designed to be called from multiple threads concurrently — batch_los
-    calls scipy.ndimage which releases the GIL, giving true parallelism.
-    """
+    """Single-candidate helper used for the post-ILP fine-grid pass."""
     if len(nearby_idx) == 0:
         return i, nearby_idx, np.array([], dtype=bool)
-
     nl = test_lats[nearby_idx]
     no = test_lons[nearby_idx]
     los_clear, veg_path = terrain.batch_los(ap_lat, ap_lon, nl, no)
-
     distances_m = np.linalg.norm(test_utm[nearby_idx] - ap_utm, axis=1)
-
     covered = np.zeros(len(nearby_idx), dtype=bool)
     for freq, rated_m in bands_m:
         eff_range = effective_range_m(rated_m, freq, veg_path)
         covered |= los_clear & (distances_m <= eff_range)
-
     return i, nearby_idx, covered
 
 
@@ -147,14 +176,13 @@ outputs:
         """,
     )
 
-    req = parser.add_argument_group("required arguments")
-    req.add_argument(
-        "--range-2g", type=float, required=True, metavar="FT",
-        help="Rated range of the AP on 2.4 GHz in feet",
+    parser.add_argument(
+        "--range-2g", type=float, default=2000.0, metavar="FT",
+        help="Rated range of the AP on 2.4 GHz in feet (default: 2000)",
     )
-    req.add_argument(
-        "--range-5g", type=float, required=True, metavar="FT",
-        help="Rated range of the AP on 5 GHz in feet",
+    parser.add_argument(
+        "--range-5g", type=float, default=1250.0, metavar="FT",
+        help="Rated range of the AP on 5 GHz in feet (default: 1250)",
     )
 
     parser.add_argument(
@@ -291,7 +319,7 @@ def main():
         return
 
     # ------------------------------------------------------------------
-    # 5. Build coverage matrix  (parallelised over candidates)
+    # 5. Build coverage matrix  (process pool, fork-inherited shared state)
     # ------------------------------------------------------------------
     print("\n=== Computing Coverage Matrix ===")
     t_cov = time.time()
@@ -308,37 +336,49 @@ def main():
 
     all_nearby = ilp_kdtree.query_ball_point(ap_utms, primary_range_m * 1.05)
 
-    coverage = np.zeros((len(viable_candidates), len(ilp_points)), dtype=bool)
+    # Set module-level globals BEFORE forking so workers inherit them
+    # without any serialisation cost (copy-on-write pages).
+    global _mp_terrain, _mp_ilp_lats, _mp_ilp_lons, _mp_ilp_utm
+    global _mp_ap_lats, _mp_ap_lons, _mp_ap_utms, _mp_all_nearby, _mp_bands_m
+    _mp_terrain   = terrain
+    _mp_ilp_lats  = ilp_lats
+    _mp_ilp_lons  = ilp_lons
+    _mp_ilp_utm   = ilp_utm
+    _mp_ap_lats   = ap_lats
+    _mp_ap_lons   = ap_lons
+    _mp_ap_utms   = ap_utms
+    _mp_all_nearby = all_nearby
+    _mp_bands_m   = bands_m
 
-    n_workers = min(os.cpu_count() or 4, 16)
-    print(f"  {len(viable_candidates)} candidates × {len(ilp_points)} ILP points"
-          f"  ({n_workers} threads)")
+    n_cands = len(viable_candidates)
+    n_workers = os.cpu_count() or 4
+    # Chunk candidates so each worker processes ~50 at a time, keeping all
+    # cores busy without the overhead of one future per candidate.
+    chunk_size = max(1, n_cands // (n_workers * 8))
+    chunks = [(i, min(i + chunk_size, n_cands))
+              for i in range(0, n_cands, chunk_size)]
+
+    coverage = np.zeros((n_cands, len(ilp_points)), dtype=bool)
+
+    print(f"  {n_cands:,} candidates × {len(ilp_points):,} ILP points  "
+          f"({n_workers} processes, {len(chunks)} chunks of ~{chunk_size})")
 
     done_count = 0
-    pool = ThreadPoolExecutor(max_workers=n_workers)
+    ctx = mp.get_context("fork")
+    pool = ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx)
     try:
-        futures = {
-            pool.submit(
-                _candidate_coverage,
-                i, ap_lats[i], ap_lons[i],
-                np.array(all_nearby[i], dtype=int) if all_nearby[i] else np.array([], dtype=int),
-                ilp_lats, ilp_lons, ilp_utm, ap_utms[i],
-                bands_m, terrain,
-            ): i
-            for i in range(len(viable_candidates))
-        }
-
+        futures = {pool.submit(_coverage_chunk, s, e): (s, e) for s, e in chunks}
         for future in as_completed(futures):
-            i, nearby_idx, covered = future.result()
-            if len(nearby_idx):
-                coverage[i, nearby_idx] = covered
-            done_count += 1
-            if done_count % 200 == 0 or done_count == len(viable_candidates):
+            for i, nearby_idx, covered in future.result():
+                if len(nearby_idx):
+                    coverage[i, nearby_idx] = covered
+                done_count += 1
+            if done_count % max(chunk_size, 200) < chunk_size or done_count == n_cands:
                 elapsed = time.time() - t_cov
-                rate = done_count / elapsed
-                eta = (len(viable_candidates) - done_count) / rate if rate > 0 else 0
+                rate = done_count / elapsed if elapsed > 0 else 1
+                eta = (n_cands - done_count) / rate
                 print(
-                    f"  {done_count}/{len(viable_candidates)} candidates  "
+                    f"  {done_count:,}/{n_cands:,} candidates  "
                     f"({elapsed:.0f}s elapsed, ~{eta:.0f}s remaining)    ",
                     end="\r",
                 )
