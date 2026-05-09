@@ -7,7 +7,7 @@ from datetime import datetime
 import numpy as np
 import simplekml
 
-FT_PER_M = 3.28084
+from constants import FT_PER_M
 
 
 _STATUS_COLOR = {
@@ -41,6 +41,9 @@ def write_kml(aps: list[dict], path: str = "output/ap_placement.kml") -> None:
         pnt.style.labelstyle.scale = 0.9
 
         bands_str = ", ".join(ap.get("bands", []))
+        facing = ap.get("panel_facing", "south")
+        azimuth = ap.get("panel_azimuth_deg", 180)
+        tilt = ap.get("panel_tilt_deg", 40)
         pnt.description = (
             f"<![CDATA["
             f"<b>{ap['name']}</b><br/>"
@@ -49,6 +52,7 @@ def write_kml(aps: list[dict], path: str = "output/ap_placement.kml") -> None:
             f"Daily harvest: {ap.get('harvest_wh', '?'):.0f} Wh "
             f"(demand 240 Wh)<br/>"
             f"Shade: {ap.get('shade_pct', '?'):.0f}%<br/>"
+            f"Panel: {facing} ({azimuth}°), tilt {tilt}°<br/>"
             f"Coverage efficiency: {ap.get('coverage_efficiency_pct', '?'):.0f}%<br/>"
             f"Overlap with neighbours: {ap.get('overlap_pct', '?'):.0f}%"
             f"]]>"
@@ -114,7 +118,18 @@ def write_summary(
             "",
         ]
 
+    # Deduplicate panel orientation across all APs (usually identical for every AP)
+    facings = sorted({ap.get("panel_facing", "south") for ap in aps})
+    azimuths = sorted({ap.get("panel_azimuth_deg", 180) for ap in aps})
+    tilts = sorted({ap.get("panel_tilt_deg", 40) for ap in aps})
+
     lines += [
+        "## Panel Orientation",
+        f"- **Facing:** {', '.join(str(f) for f in facings)}",
+        f"- **Azimuth:** {', '.join(str(a) + '°' for a in azimuths)} "
+        "(0° = north, 90° = east, 180° = south, 270° = west)",
+        f"- **Tilt:** {', '.join(str(t) + '°' for t in tilts)} from horizontal",
+        "",
         "## Coverage",
         f"- **Total APs placed:** {len(aps)}",
         f"- **Test points covered:** {total_covered:,} / {n_test_points:,} "

@@ -10,6 +10,8 @@ Usage
 import argparse
 import os
 import shutil
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 from pyproj import Transformer
@@ -36,12 +38,41 @@ from models.rf import effective_range_m
 from models.power import daily_harvest_wh, solar_status, DEMAND_WH_PER_DAY
 from optimize.placer import optimize_placement
 from output.writer import write_placement_json, write_summary, write_kml
+from constants import (
+    FT_PER_M,
+    CANDIDATE_SPACING_M, TEST_SPACING_M, PATH_BUFFER_M,
+    PANEL_FACING, PANEL_AZIMUTH_DEG, PANEL_TILT_DEG,
+)
 
-FT_PER_M = 3.28084
 
-CANDIDATE_SPACING_M = 20   # ~66 ft
-TEST_SPACING_M = 10        # ~33 ft
-PATH_BUFFER_M = 4.57       # 15 ft — for "paths" coverage mode
+# ---------------------------------------------------------------------------
+# Coverage matrix worker (called from ThreadPoolExecutor)
+# ---------------------------------------------------------------------------
+
+def _candidate_coverage(
+    i, ap_lat, ap_lon, nearby_idx, test_lats, test_lons,
+    test_utm, ap_utm, bands_m, terrain,
+):
+    """Compute which test points are covered by a single AP candidate.
+
+    Designed to be called from multiple threads concurrently — batch_los
+    calls scipy.ndimage which releases the GIL, giving true parallelism.
+    """
+    if len(nearby_idx) == 0:
+        return i, nearby_idx, np.array([], dtype=bool)
+
+    nl = test_lats[nearby_idx]
+    no = test_lons[nearby_idx]
+    los_clear, veg_path = terrain.batch_los(ap_lat, ap_lon, nl, no)
+
+    distances_m = np.linalg.norm(test_utm[nearby_idx] - ap_utm, axis=1)
+
+    covered = np.zeros(len(nearby_idx), dtype=bool)
+    for freq, rated_m in bands_m:
+        eff_range = effective_range_m(rated_m, freq, veg_path)
+        covered |= los_clear & (distances_m <= eff_range)
+
+    return i, nearby_idx, covered
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +260,7 @@ def main():
     # 4. Solar viability per candidate
     # ------------------------------------------------------------------
     print("\n=== Computing Solar Viability ===")
+    t_solar = time.time()
     candidate_meta = []
     for lat, lon in candidates:
         shade = terrain.shade_fraction(lat, lon)
@@ -241,9 +273,12 @@ def main():
     viable_meta = [candidate_meta[i] for i in viable_idx]
 
     n_unviable = len(candidates) - len(viable_candidates)
+    n_marginal = sum(1 for m in viable_meta if m["status"] == "marginal")
     print(
-        f"Viable: {len(viable_candidates)}  "
-        f"Unviable (too shaded): {n_unviable}"
+        f"Viable: {len(viable_candidates) - n_marginal}  "
+        f"Marginal: {n_marginal}  "
+        f"Unviable (too shaded): {n_unviable}  "
+        f"({time.time()-t_solar:.1f}s)"
     )
 
     if not viable_candidates:
@@ -252,51 +287,66 @@ def main():
         return
 
     # ------------------------------------------------------------------
-    # 5. Build coverage matrix
+    # 5. Build coverage matrix  (parallelised over candidates)
     # ------------------------------------------------------------------
     print("\n=== Computing Coverage Matrix ===")
+    t_cov = time.time()
+
     test_lats = np.array([p[0] for p in test_points])
     test_lons = np.array([p[1] for p in test_points])
-
     test_utm = np.column_stack(to_utm(test_lons, test_lats))
     test_kdtree = cKDTree(test_utm)
 
+    # Pre-compute AP UTM coords and nearby test-point indices for all candidates.
+    ap_lats = np.array([p[0] for p in viable_candidates])
+    ap_lons = np.array([p[1] for p in viable_candidates])
+    ap_utms = np.column_stack(to_utm(ap_lons, ap_lats))
+
+    # query_ball_point with an array of query points is vectorised.
+    all_nearby = test_kdtree.query_ball_point(ap_utms, primary_range_m * 1.05)
+
     coverage = np.zeros((len(viable_candidates), len(test_points)), dtype=bool)
 
-    for i, (ap_lat, ap_lon) in enumerate(viable_candidates):
-        if i % 50 == 0:
-            print(f"  {i}/{len(viable_candidates)} candidates...", end="\r")
+    n_workers = min(os.cpu_count() or 4, 16)
+    print(f"  {len(viable_candidates)} candidates × {len(test_points)} test points"
+          f"  ({n_workers} threads)")
 
-        ap_utm = np.array(to_utm(ap_lon, ap_lat))
-        # Query a slightly larger radius to account for vegetation-adjusted range
-        nearby_idx = test_kdtree.query_ball_point(ap_utm, primary_range_m * 1.05)
+    done_count = 0
+    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+        futures = {
+            pool.submit(
+                _candidate_coverage,
+                i, ap_lats[i], ap_lons[i],
+                np.array(all_nearby[i], dtype=int) if all_nearby[i] else np.array([], dtype=int),
+                test_lats, test_lons, test_utm, ap_utms[i],
+                bands_m, terrain,
+            ): i
+            for i in range(len(viable_candidates))
+        }
 
-        if not nearby_idx:
-            continue
+        for future in as_completed(futures):
+            i, nearby_idx, covered = future.result()
+            if len(nearby_idx):
+                coverage[i, nearby_idx] = covered
+            done_count += 1
+            if done_count % 200 == 0 or done_count == len(viable_candidates):
+                elapsed = time.time() - t_cov
+                rate = done_count / elapsed
+                eta = (len(viable_candidates) - done_count) / rate if rate > 0 else 0
+                print(
+                    f"  {done_count}/{len(viable_candidates)} candidates  "
+                    f"({elapsed:.0f}s elapsed, ~{eta:.0f}s remaining)    ",
+                    end="\r",
+                )
 
-        nearby_idx = np.array(nearby_idx)
-        nl = test_lats[nearby_idx]
-        no = test_lons[nearby_idx]
-
-        los_clear, veg_path = terrain.batch_los(ap_lat, ap_lon, nl, no)
-
-        nearby_utm = test_utm[nearby_idx]
-        distances_m = np.linalg.norm(nearby_utm - ap_utm, axis=1)
-
-        # A point is covered if ANY band's effective range reaches it
-        covered = np.zeros(len(nearby_idx), dtype=bool)
-        for freq, rated_m in bands_m:
-            eff_range = effective_range_m(rated_m, freq, veg_path)
-            covered |= los_clear & (distances_m <= eff_range)
-
-        coverage[i, nearby_idx] = covered
-
-    print(f"  Coverage matrix built: {coverage.sum():,} covered pairs")
+    print(f"\n  Coverage matrix: {coverage.sum():,} covered pairs  "
+          f"({time.time()-t_cov:.1f}s total)")
 
     # ------------------------------------------------------------------
     # 6. ILP optimisation
     # ------------------------------------------------------------------
     print("\n=== Running ILP Optimiser ===")
+    t_ilp = time.time()
     statuses = [m["status"] for m in viable_meta]
     selected_idx = optimize_placement(coverage, statuses)
 
@@ -342,6 +392,9 @@ def main():
             "shade_pct": round(meta["shade"] * 100.0, 1),
             "coverage_efficiency_pct": round(efficiency_pct, 1),
             "overlap_pct": round(overlap_pct, 1),
+            "panel_facing": PANEL_FACING,
+            "panel_azimuth_deg": PANEL_AZIMUTH_DEG,
+            "panel_tilt_deg": PANEL_TILT_DEG,
         })
 
     # ------------------------------------------------------------------

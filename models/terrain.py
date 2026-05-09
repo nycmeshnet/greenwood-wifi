@@ -8,10 +8,10 @@ from pyproj import Transformer
 from shapely.geometry import Point
 
 from data.elevation import latlon_to_grid, grid_to_latlon
-
-AP_HEIGHT_M = 0.9144      # 3 ft — AP antenna mounted on a pole
-RX_HEIGHT_M = 1.524       # 5 ft — person holding a device
-DEFAULT_TREE_HEIGHT_M = 15.0
+from constants import (
+    AP_HEIGHT_M, RX_HEIGHT_M, DEFAULT_TREE_HEIGHT_M,
+    TREE_CANOPY_THRESHOLD_M, SHADE_RADIUS_M,
+)
 
 _to_utm = Transformer.from_crs("EPSG:4326", "EPSG:32618", always_xy=True)
 _to_wgs84 = Transformer.from_crs("EPSG:32618", "EPSG:4326", always_xy=True)
@@ -107,7 +107,7 @@ class TerrainModel:
         c = float(np.clip(c, 0, self.elev.shape[1] - 1))
         return float(scipy.ndimage.map_coordinates(self.elev, [[r], [c]], order=1)[0])
 
-    def shade_fraction(self, lat: float, lon: float, radius_m: float = 50.0) -> float:
+    def shade_fraction(self, lat: float, lon: float, radius_m: float = SHADE_RADIUS_M) -> float:
         """
         Fraction of sky blocked by nearby tree crowns (solid-angle model).
 

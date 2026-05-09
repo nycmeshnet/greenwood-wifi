@@ -7,7 +7,11 @@ Guards against points escaping the boundary and feet/metres unit confusion.
 import pytest
 from shapely.geometry import Point, Polygon
 
-from main import generate_grid, FT_PER_M
+from main import generate_grid
+from constants import (
+    FT_PER_M, AP_HEIGHT_M,
+    PANEL_FACING, PANEL_AZIMUTH_DEG, PANEL_TILT_DEG,
+)
 
 
 def _small_brooklyn_polygon():
@@ -70,3 +74,24 @@ class TestFeetMetresConversion:
         """1 ft < 1 m, so range_m must always be less than range_ft."""
         for ft in (100.0, 300.0, 500.0):
             assert ft / FT_PER_M < ft
+
+
+class TestHardwareConstants:
+    def test_panel_height_above_ground(self):
+        """Panel is above the ground — not at or below grade."""
+        assert AP_HEIGHT_M > 0.0
+
+    def test_panel_height_is_one_metre(self):
+        """Hard-coded per spec: panel sits 1 m above ground on a short pole."""
+        assert AP_HEIGHT_M == pytest.approx(1.0, abs=0.01)
+
+    def test_panel_azimuth_valid_compass(self):
+        """Azimuth must be in [0, 360)."""
+        assert 0.0 <= PANEL_AZIMUTH_DEG < 360.0
+
+    def test_panel_tilt_valid(self):
+        """Tilt must be in [0, 90] degrees from horizontal."""
+        assert 0.0 <= PANEL_TILT_DEG <= 90.0
+
+    def test_panel_facing_is_string(self):
+        assert isinstance(PANEL_FACING, str) and len(PANEL_FACING) > 0

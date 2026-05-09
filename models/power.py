@@ -1,15 +1,15 @@
 """Solar power budget model for a single AP node."""
 
-# Hardware constants (fixed per the project spec)
-PANEL_RATED_W = 100.0
-LOAD_W = 10.0
-BATTERY_WH = 50.0
-DERATING = 0.80          # accounts for temperature, wiring, soiling losses
-DEMAND_WH_PER_DAY = LOAD_W * 24.0   # 240 Wh/day
+from constants import (
+    PANEL_RATED_W, LOAD_W, BATTERY_WH, DERATING,
+    DEMAND_WH_PER_DAY, MARGINAL_LOW, MARGINAL_HIGH,
+)
 
-# Thresholds for classifying a candidate location
-_MARGINAL_LOW = 0.80     # below this ratio → unviable
-_MARGINAL_HIGH = 1.10    # above this ratio → clearly viable
+# Re-export so callers that import from here still work.
+__all__ = [
+    "PANEL_RATED_W", "LOAD_W", "BATTERY_WH", "DERATING",
+    "DEMAND_WH_PER_DAY", "daily_harvest_wh", "solar_status",
+]
 
 
 def daily_harvest_wh(ghi_wh_per_day: float, shade_fraction: float) -> float:
@@ -36,8 +36,8 @@ def solar_status(harvest_wh: float) -> str:
         'unviable' — harvest < 80 % of demand; exclude from candidates
     """
     ratio = harvest_wh / DEMAND_WH_PER_DAY
-    if ratio >= _MARGINAL_HIGH:
+    if ratio >= MARGINAL_HIGH:
         return "viable"
-    if ratio >= _MARGINAL_LOW:
+    if ratio >= MARGINAL_LOW:
         return "marginal"
     return "unviable"
