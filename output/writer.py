@@ -7,7 +7,7 @@ from datetime import datetime
 import numpy as np
 import simplekml
 
-from constants import FT_PER_M
+from constants import FT_PER_M, DOWNGRADE_RANGE_THRESHOLD, OVERLAP_THRESHOLD_PCT
 
 
 _STATUS_COLOR = {
@@ -76,6 +76,7 @@ def write_summary(
     rated_range_ft: float,
     path: str = "output/summary.md",
     shoulder_months_list: list[str] | None = None,
+    n_pruned: int = 0,
 ) -> None:
     """
     Write a Markdown summary.
@@ -93,11 +94,16 @@ def write_summary(
 
     marginal = [ap for ap in aps if ap.get("solar_status") == "marginal"]
 
-    # APs that cover a small fraction of their theoretical rated-range circle —
-    # heavy tree attenuation means a cheaper short-range AP would do the same job.
-    underutilized = [ap for ap in aps if ap.get("coverage_efficiency_pct", 100) < 30]
+    # APs whose farthest covered point is well within the rated range —
+    # a shorter-range (cheaper) AP spec would cover the same area here.
+    downgrade_ft = rated_range_ft * DOWNGRADE_RANGE_THRESHOLD
+    downgradeable = [
+        ap for ap in aps
+        if ap.get("effective_range_ft", rated_range_ft) < downgrade_ft
+    ]
 
-    # APs where most of their covered area is also covered by a neighbour.
+    # APs with notable (but sub-threshold) overlap with neighbours — informational only.
+    # Above-threshold APs were already removed before this summary was written.
     high_overlap = [ap for ap in aps if ap.get("overlap_pct", 0) > 50]
 
     shoulder_months_list = shoulder_months_list or []
@@ -131,7 +137,9 @@ def write_summary(
         f"- **Tilt:** {', '.join(str(t) + '°' for t in tilts)} from horizontal",
         "",
         "## Coverage",
-        f"- **Total APs placed:** {len(aps)}",
+        f"- **Total APs placed:** {len(aps)}"
+        + (f"  *(+ {n_pruned} removed, >{OVERLAP_THRESHOLD_PCT:.0f} % overlap with neighbours)*"
+           if n_pruned else ""),
         f"- **Test points covered:** {total_covered:,} / {n_test_points:,} "
         f"({coverage_pct:.1f} %)",
         f"- **Uncovered points:** {uncovered:,}",
@@ -158,27 +166,30 @@ def write_summary(
         lines.append("_None — all APs have adequate solar exposure._")
 
     lines += ["", "## Potentially Downgrade-able APs"]
-    if underutilized:
+    if downgradeable:
         lines.append(
-            "These APs cover less than 30 % of the area their rated range implies. "
-            "Heavy tree attenuation is the usual cause. A cheaper AP with a shorter "
-            "rated range would deliver the same real-world coverage at lower cost."
+            f"The farthest covered point for these APs is less than "
+            f"{DOWNGRADE_RANGE_THRESHOLD * 100:.0f} % of the rated "
+            f"{rated_range_ft:.0f} ft range ({downgrade_ft:.0f} ft threshold). "
+            "Tree attenuation limits their real-world reach — a cheaper AP with a "
+            "shorter rated range would cover the same area at lower cost."
         )
         lines.append("")
-        for ap in underutilized:
+        for ap in downgradeable:
+            eff = ap.get("effective_range_ft", "?")
             lines.append(
-                f"- **{ap['name']}**  —  covers only "
-                f"{ap.get('coverage_efficiency_pct', '?'):.0f} % of rated-range area"
+                f"- **{ap['name']}**  —  only needs ~{eff} ft  "
+                f"*(rated: {rated_range_ft:.0f} ft)*"
             )
     else:
-        lines.append("_None — all APs are utilising their rated range effectively._")
+        lines.append("_None — all APs are utilising a significant portion of their rated range._")
 
     lines += ["", "## High-Overlap APs"]
     if high_overlap:
         lines.append(
-            "More than 50 % of these APs' coverage area is also served by an adjacent AP. "
-            "If cost reduction matters more than redundancy, these are the first candidates "
-            "to remove and re-run the optimiser."
+            f"More than 50 % of these APs' coverage area is also served by a neighbour "
+            f"(APs above {OVERLAP_THRESHOLD_PCT:.0f} % were already removed). "
+            "These have moderate redundancy — useful for resilience, optional for cost cutting."
         )
         lines.append("")
         for ap in high_overlap:
@@ -191,9 +202,9 @@ def write_summary(
 
     lines += ["", "## AP List"]
     lines.append(
-        "| Name | Lat | Lon | Solar | Harvest (Wh/day) | Shade % | Efficiency % | Overlap % |"
+        "| Name | Lat | Lon | Solar | Harvest (Wh/day) | Shade % | Eff. Range (ft) | Efficiency % | Overlap % |"
     )
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     for ap in aps:
         lines.append(
             f"| {ap['name']} "
@@ -202,6 +213,7 @@ def write_summary(
             f"| {ap.get('solar_status', '?')} "
             f"| {ap.get('harvest_wh', '?'):.0f} "
             f"| {ap.get('shade_pct', '?'):.0f} "
+            f"| {ap.get('effective_range_ft', '?')} "
             f"| {ap.get('coverage_efficiency_pct', '?'):.0f} "
             f"| {ap.get('overlap_pct', '?'):.0f} |"
         )

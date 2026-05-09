@@ -70,6 +70,18 @@ SHADE_RADIUS_M = 50.0           # Radius used for solid-angle shade fraction che
 MARGINAL_PENALTY = 1.5     # Weight multiplier for marginal-solar candidates
 
 # ---------------------------------------------------------------------------
+# Post-ILP AP pruning
+# ---------------------------------------------------------------------------
+# Flag an AP as "downgrade-able" when its farthest covered point is less than
+# this fraction of the rated primary-band range. E.g. 0.5 = flag if effective
+# reach is < half the rated range — a cheaper AP with a shorter spec would do.
+DOWNGRADE_RANGE_THRESHOLD = 0.5
+
+# Remove APs whose covered area is already served by neighbours above this
+# overlap fraction. Applied as a single-pass post-ILP prune.
+OVERLAP_THRESHOLD_PCT = 80.0
+
+# ---------------------------------------------------------------------------
 # Site (Green-Wood Cemetery, Brooklyn NY)
 # ---------------------------------------------------------------------------
 # OSM relation ID — fetched live from Overpass each run (cached after first fetch).
