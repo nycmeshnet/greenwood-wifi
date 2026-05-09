@@ -180,12 +180,22 @@ def fetch_trees(boundary: Polygon, no_cache: bool = False) -> gpd.GeoDataFrame:
     for node in result.nodes:
         pt = Point(float(node.lon), float(node.lat))
         if boundary.contains(pt):
-            canopy_r = float(node.tags.get("diameter_crown", "6")) / 2
             raw_h = node.tags.get("height", "0").rstrip("m ").strip()
             try:
                 height_m = float(raw_h) if raw_h else 0.0
             except ValueError:
                 height_m = 0.0
+            if height_m <= 0:
+                height_m = 0.0
+
+            if "diameter_crown" in node.tags:
+                canopy_r = float(node.tags["diameter_crown"]) / 2
+            else:
+                # Estimate from height: mature trees ≈ 0.4× height as crown radius.
+                # Default height 15 m → 6 m crown radius.
+                effective_h = height_m if height_m > 0 else 15.0
+                canopy_r = max(3.0, effective_h * 0.4)
+
             records.append({
                 "geometry": pt,
                 "canopy_radius_m": canopy_r,

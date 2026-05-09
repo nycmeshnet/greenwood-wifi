@@ -1,5 +1,6 @@
 """Digital Surface Model construction and vectorised line-of-sight calculations."""
 
+import warnings
 import numpy as np
 import scipy.ndimage
 import geopandas as gpd
@@ -36,6 +37,7 @@ class TerrainModel:
     ):
         self.elev = elevation.astype(np.float32)
         self.transform = transform
+        self.trees_gdf = trees_gdf if trees_gdf is not None else gpd.GeoDataFrame()
         self.dsm = self._build_dsm(trees_gdf)
         self.building_mask = self._rasterise_buildings(buildings_gdf)
 
@@ -105,31 +107,36 @@ class TerrainModel:
         c = float(np.clip(c, 0, self.elev.shape[1] - 1))
         return float(scipy.ndimage.map_coordinates(self.elev, [[r], [c]], order=1)[0])
 
-    def shade_fraction(self, lat: float, lon: float, radius_m: float = 10.0) -> float:
+    def shade_fraction(self, lat: float, lon: float, radius_m: float = 50.0) -> float:
         """
-        Fraction of the upward hemisphere blocked by tree canopy within radius_m.
+        Fraction of sky blocked by nearby tree crowns (solid-angle model).
 
-        Uses the DSM vs bare-earth difference as a canopy proxy; any cell where
-        the surface is more than 2 m above bare earth is counted as shaded.
+        Each tree contributes r² / (r² + d²) to the shade sum, so a tree
+        directly overhead contributes 1.0 and the contribution falls off
+        naturally with distance.  Summed contributions are clipped to 1.0.
+        radius_m=50 covers trees that cast meaningful shade at ~15° sun elevation.
         """
-        cell_lat_m = abs(self.transform["cell_lat"]) * 111_320.0
-        r_cells = int(radius_m / cell_lat_m) + 1
+        if self.trees_gdf is None or self.trees_gdf.empty:
+            return 0.0
 
-        pt_r, pt_c = latlon_to_grid(lat, lon, self.transform)
-        nrows, ncols = self.elev.shape
+        pt = Point(lon, lat)
+        rad_deg = radius_m / 111_320.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            nearby = self.trees_gdf[self.trees_gdf.geometry.distance(pt) < rad_deg]
+        if nearby.empty:
+            return 0.0
 
-        total = 0
-        shaded = 0
-        for dr in range(-r_cells, r_cells + 1):
-            for dc in range(-r_cells, r_cells + 1):
-                r = int(pt_r) + dr
-                c = int(pt_c) + dc
-                if 0 <= r < nrows and 0 <= c < ncols:
-                    total += 1
-                    if (self.dsm[r, c] - self.elev[r, c]) > 2.0:
-                        shaded += 1
-
-        return shaded / total if total > 0 else 0.0
+        m_per_deg_lat = 111_320.0
+        m_per_deg_lon = 111_320.0 * np.cos(np.radians(lat))
+        shade = 0.0
+        for _, row in nearby.iterrows():
+            r = float(row.get("canopy_radius_m") or 6.0)
+            dlat = (row.geometry.y - lat) * m_per_deg_lat
+            dlon = (row.geometry.x - lon) * m_per_deg_lon
+            d2 = dlat ** 2 + dlon ** 2
+            shade += r * r / (r * r + d2)
+        return min(shade, 1.0)
 
     def batch_los(
         self,
