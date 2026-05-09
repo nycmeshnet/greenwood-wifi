@@ -13,7 +13,10 @@ FT_PER_M = 3.28084
 # Grid generation
 # ---------------------------------------------------------------------------
 CANDIDATE_SPACING_M = 20   # AP candidate grid spacing (~66 ft)
-TEST_SPACING_M = 10        # Coverage test-point grid spacing (~33 ft)
+TEST_SPACING_M = 10        # Fine test-point grid for coverage reporting (~33 ft)
+ILP_TEST_SPACING_M = 20    # Coarser grid used inside the ILP solver — pole placement
+                           # only needs ~1 m precision; 20 m matches the candidate
+                           # spacing and cuts constraints ~4× vs the 10 m grid
 PATH_BUFFER_M = 4.57       # 15 ft — radius around paths for "paths" coverage mode
 
 # ---------------------------------------------------------------------------

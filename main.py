@@ -40,7 +40,7 @@ from optimize.placer import optimize_placement
 from output.writer import write_placement_json, write_summary, write_kml
 from constants import (
     FT_PER_M,
-    CANDIDATE_SPACING_M, TEST_SPACING_M, PATH_BUFFER_M,
+    CANDIDATE_SPACING_M, TEST_SPACING_M, ILP_TEST_SPACING_M, PATH_BUFFER_M,
     PANEL_FACING, PANEL_AZIMUTH_DEG, PANEL_TILT_DEG,
 )
 
@@ -250,11 +250,15 @@ def main():
     candidates = generate_grid(boundary, CANDIDATE_SPACING_M)
 
     if args.coverage == "paths":
-        test_points = generate_path_grid(paths, boundary, TEST_SPACING_M)
+        report_points = generate_path_grid(paths, boundary, TEST_SPACING_M)
+        ilp_points    = generate_path_grid(paths, boundary, ILP_TEST_SPACING_M)
     else:
-        test_points = generate_grid(boundary, TEST_SPACING_M)
+        report_points = generate_grid(boundary, TEST_SPACING_M)
+        ilp_points    = generate_grid(boundary, ILP_TEST_SPACING_M)
 
-    print(f"Candidates: {len(candidates)},  Test points: {len(test_points)}")
+    print(f"Candidates: {len(candidates):,}  "
+          f"ILP test grid: {len(ilp_points):,}  "
+          f"Report grid: {len(report_points):,}")
 
     # ------------------------------------------------------------------
     # 4. Solar viability per candidate
@@ -292,23 +296,22 @@ def main():
     print("\n=== Computing Coverage Matrix ===")
     t_cov = time.time()
 
-    test_lats = np.array([p[0] for p in test_points])
-    test_lons = np.array([p[1] for p in test_points])
-    test_utm = np.column_stack(to_utm(test_lons, test_lats))
-    test_kdtree = cKDTree(test_utm)
+    # ILP uses the coarser grid; fine grid is used only for coverage reporting.
+    ilp_lats = np.array([p[0] for p in ilp_points])
+    ilp_lons = np.array([p[1] for p in ilp_points])
+    ilp_utm  = np.column_stack(to_utm(ilp_lons, ilp_lats))
+    ilp_kdtree = cKDTree(ilp_utm)
 
-    # Pre-compute AP UTM coords and nearby test-point indices for all candidates.
     ap_lats = np.array([p[0] for p in viable_candidates])
     ap_lons = np.array([p[1] for p in viable_candidates])
     ap_utms = np.column_stack(to_utm(ap_lons, ap_lats))
 
-    # query_ball_point with an array of query points is vectorised.
-    all_nearby = test_kdtree.query_ball_point(ap_utms, primary_range_m * 1.05)
+    all_nearby = ilp_kdtree.query_ball_point(ap_utms, primary_range_m * 1.05)
 
-    coverage = np.zeros((len(viable_candidates), len(test_points)), dtype=bool)
+    coverage = np.zeros((len(viable_candidates), len(ilp_points)), dtype=bool)
 
     n_workers = min(os.cpu_count() or 4, 16)
-    print(f"  {len(viable_candidates)} candidates × {len(test_points)} test points"
+    print(f"  {len(viable_candidates)} candidates × {len(ilp_points)} ILP points"
           f"  ({n_workers} threads)")
 
     done_count = 0
@@ -318,7 +321,7 @@ def main():
                 _candidate_coverage,
                 i, ap_lats[i], ap_lons[i],
                 np.array(all_nearby[i], dtype=int) if all_nearby[i] else np.array([], dtype=int),
-                test_lats, test_lons, test_utm, ap_utms[i],
+                ilp_lats, ilp_lons, ilp_utm, ap_utms[i],
                 bands_m, terrain,
             ): i
             for i in range(len(viable_candidates))
@@ -355,9 +358,30 @@ def main():
         return
 
     # ------------------------------------------------------------------
-    # 7. Annotate selected APs and compute stats
+    # 7. Fine-grid coverage for selected APs (stats + summary)
     # ------------------------------------------------------------------
-    selected_coverage = coverage[selected_idx]   # bool[n_sel, n_test]
+    print("\n=== Computing Fine Coverage for Selected APs ===")
+    rep_lats = np.array([p[0] for p in report_points])
+    rep_lons = np.array([p[1] for p in report_points])
+    rep_utm  = np.column_stack(to_utm(rep_lons, rep_lats))
+    rep_kdtree = cKDTree(rep_utm)
+
+    n_sel = len(selected_idx)
+    sel_lats = ap_lats[selected_idx]
+    sel_lons = ap_lons[selected_idx]
+    sel_utms = ap_utms[selected_idx]
+    sel_nearby = rep_kdtree.query_ball_point(sel_utms, primary_range_m * 1.05)
+
+    selected_coverage = np.zeros((n_sel, len(report_points)), dtype=bool)
+    for rank in range(n_sel):
+        nearby_idx = np.array(sel_nearby[rank], dtype=int) if sel_nearby[rank] else np.array([], dtype=int)
+        if len(nearby_idx):
+            _, near, cov = _candidate_coverage(
+                rank, sel_lats[rank], sel_lons[rank],
+                nearby_idx, rep_lats, rep_lons, rep_utm, sel_utms[rank],
+                bands_m, terrain,
+            )
+            selected_coverage[rank, near] = cov
 
     aps = []
     for rank, idx in enumerate(selected_idx):
@@ -365,13 +389,13 @@ def main():
         name = f"GW-AP-{rank + 1:02d}"
         meta = viable_meta[idx]
 
-        ap_cov = coverage[idx]                   # bool[n_test]
+        ap_cov = selected_coverage[rank]
         n_covered = int(ap_cov.sum())
 
         # Overlap: how many of this AP's covered points are also covered by another selected AP
-        others = [j for j in selected_idx if j != idx]
+        others = [r for r in range(n_sel) if r != rank]
         if others:
-            other_cov = coverage[others].any(axis=0)
+            other_cov = selected_coverage[others].any(axis=0)
             overlap = int((ap_cov & other_cov).sum())
         else:
             overlap = 0
@@ -407,7 +431,7 @@ def main():
     write_summary(
         aps,
         selected_coverage,
-        len(test_points),
+        len(report_points),
         primary_range_ft,
         "output/summary.md",
         shoulder_months_list=off_season,

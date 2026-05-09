@@ -4,6 +4,7 @@ HiGHS accepts the coverage matrix as a scipy sparse matrix directly, avoiding
 the per-constraint Python loop that made the old PuLP/CBC approach slow.
 """
 
+import os
 import time
 
 import numpy as np
@@ -56,14 +57,21 @@ def optimize_placement(
     print(f"  Constraints: {n_constrained}  non-zeros: {nnz:,}  "
           f"({time.time()-t0:.1f}s to build)")
 
+    n_threads = os.cpu_count() or 1
     t1 = time.time()
-    print("  Solving with HiGHS...", flush=True)
+    print(f"  Solving with HiGHS ({n_threads} threads, IPM)...", flush=True)
 
     result = milp(
         c,
         constraints=LinearConstraint(A, lb=1.0, ub=np.inf),
         integrality=np.ones(n_candidates, dtype=np.int8),
         bounds=Bounds(lb=0, ub=1),
+        options={
+            "threads": n_threads,
+            "solver": "ipm",          # interior-point handles degenerate set-cover LPs better
+            "mip_heuristic_effort": 1.0,  # max effort finding integer solutions early
+            "presolve": True,
+        },
     )
 
     elapsed = time.time() - t1
