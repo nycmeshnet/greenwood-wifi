@@ -6,6 +6,7 @@ the per-constraint Python loop that made the old PuLP/CBC approach slow.
 
 import os
 import time
+import warnings
 
 import numpy as np
 from scipy.optimize import milp, LinearConstraint, Bounds
@@ -61,18 +62,22 @@ def optimize_placement(
     t1 = time.time()
     print(f"  Solving with HiGHS ({n_threads} threads, IPM)...", flush=True)
 
-    result = milp(
-        c,
-        constraints=LinearConstraint(A, lb=1.0, ub=np.inf),
-        integrality=np.ones(n_candidates, dtype=np.int8),
-        bounds=Bounds(lb=0, ub=1),
-        options={
-            "threads": n_threads,
-            "solver": "ipm",          # interior-point handles degenerate set-cover LPs better
-            "mip_heuristic_effort": 1.0,  # max effort finding integer solutions early
-            "presolve": True,
-        },
-    )
+    # threads/solver/mip_heuristic_effort are valid HiGHS options that scipy passes
+    # through verbatim but doesn't list in its own API, triggering a RuntimeWarning.
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Unrecognized options", RuntimeWarning)
+        result = milp(
+            c,
+            constraints=LinearConstraint(A, lb=1.0, ub=np.inf),
+            integrality=np.ones(n_candidates, dtype=np.int8),
+            bounds=Bounds(lb=0, ub=1),
+            options={
+                "threads": n_threads,
+                "solver": "ipm",
+                "mip_heuristic_effort": 1.0,
+                "presolve": True,
+            },
+        )
 
     elapsed = time.time() - t1
 
