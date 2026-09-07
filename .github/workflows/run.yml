@@ -105,21 +105,21 @@ jobs:
 
       - name: Run optimizer
         run: |
-          ARGS="--range-2g '${{ inputs.range-2g }}' --range-5g '${{ inputs.range-5g }}'"
+          ARGS="--range-2g ${{ inputs.range-2g }} --range-5g ${{ inputs.range-5g }}"
           if [ -n "${{ inputs.range-6g }}" ]; then
-            ARGS="$ARGS --range-6g '${{ inputs.range-6g }}'"
+            ARGS="$ARGS --range-6g ${{ inputs.range-6g }}"
           fi
-          ARGS="$ARGS --coverage '${{ inputs.coverage }}'"
-          ARGS="$ARGS --relation-id '${{ inputs.relation-id }}'"
-          ARGS="$ARGS --panel-w '${{ inputs.panel-w }}' --load-w '${{ inputs.load-w }}'"
-          ARGS="$ARGS --derating '${{ inputs.derating }}' --tilt '${{ inputs.tilt }}'"
-          ARGS="$ARGS --freeze-thresh-f '${{ inputs.freeze-thresh-f }}'"
-          ARGS="$ARGS --candidate-spacing '${{ inputs.candidate-spacing }}'"
-          ARGS="$ARGS --ilp-spacing '${{ inputs.ilp-spacing }}'"
-          ARGS="$ARGS --test-spacing '${{ inputs.test-spacing }}'"
-          ARGS="$ARGS --ap-height '${{ inputs.ap-height }}' --rx-height '${{ inputs.rx-height }}'"
-          ARGS="$ARGS --shade-radius '${{ inputs.shade-radius }}'"
-          ARGS="$ARGS --marginal-penalty '${{ inputs.marginal-penalty }}'"
+          ARGS="$ARGS --coverage ${{ inputs.coverage }}"
+          ARGS="$ARGS --relation-id ${{ inputs.relation-id }}"
+          ARGS="$ARGS --panel-w ${{ inputs.panel-w }} --load-w ${{ inputs.load-w }}"
+          ARGS="$ARGS --derating ${{ inputs.derating }} --tilt ${{ inputs.tilt }}"
+          ARGS="$ARGS --freeze-thresh-f ${{ inputs.freeze-thresh-f }}"
+          ARGS="$ARGS --candidate-spacing ${{ inputs.candidate-spacing }}"
+          ARGS="$ARGS --ilp-spacing ${{ inputs.ilp-spacing }}"
+          ARGS="$ARGS --test-spacing ${{ inputs.test-spacing }}"
+          ARGS="$ARGS --ap-height ${{ inputs.ap-height }} --rx-height ${{ inputs.rx-height }}"
+          ARGS="$ARGS --shade-radius ${{ inputs.shade-radius }}"
+          ARGS="$ARGS --marginal-penalty ${{ inputs.marginal-penalty }}"
           echo "Running: python main.py $ARGS"
           python main.py $ARGS
 
