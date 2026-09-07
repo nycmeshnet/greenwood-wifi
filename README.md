@@ -48,6 +48,8 @@ GitHub does the compute and hosts the map — no Docker, no VPS, no API keys.
 
 Public repos get effectively unlimited Actions minutes for this.
 
+_Forked this repo? Replace `nycmeshnet/greenwood-wifi` in the links above with your `org/repo` — the workflow, viewer, and Pages deploy are org-agnostic and work unchanged._
+
 ### Option B — view results (no compute)
 
 * **Hosted map:** open [https://nycmeshnet.github.io/greenwood-wifi/](https://nycmeshnet.github.io/greenwood-wifi/). Green = viable, yellow = marginal. Table + per-AP Google Maps links included.
