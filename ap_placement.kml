@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+    <Document id="1">
+        <Style id="4">
+            <IconStyle id="5">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="6">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="7">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="10">
+            <IconStyle id="11">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="12">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="13">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="16">
+            <IconStyle id="17">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="18">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="19">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="22">
+            <IconStyle id="23">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="24">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="25">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="28">
+            <IconStyle id="29">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="30">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="31">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="34">
+            <IconStyle id="35">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="36">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="37">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="40">
+            <IconStyle id="41">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="42">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="43">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="46">
+            <IconStyle id="47">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="48">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="49">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="52">
+            <IconStyle id="53">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="54">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="55">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="58">
+            <IconStyle id="59">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="60">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="61">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="64">
+            <IconStyle id="65">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="66">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="67">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="70">
+            <IconStyle id="71">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="72">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="73">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="76">
+            <IconStyle id="77">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="78">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="79">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="82">
+            <IconStyle id="83">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="84">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="85">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="88">
+            <IconStyle id="89">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="90">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="91">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="94">
+            <IconStyle id="95">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="96">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="97">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="100">
+            <IconStyle id="101">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="102">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="103">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <Style id="106">
+            <IconStyle id="107">
+                <color>ff00aaff</color>
+                <colorMode>normal</colorMode>
+                <scale>1.2</scale>
+                <heading>0</heading>
+                <Icon id="108">
+                    <href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+                </Icon>
+            </IconStyle>
+            <LabelStyle id="109">
+                <colorMode>normal</colorMode>
+                <scale>0.9</scale>
+            </LabelStyle>
+        </Style>
+        <name>Green-Wood Cemetery WiFi APs</name>
+        <Placemark id="3">
+            <name>GW-AP-01</name>
+            <description><![CDATA[<b>GW-AP-01</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 13%<br/>Overlap with neighbours: 84%]]></description>
+            <styleUrl>#4</styleUrl>
+            <Point id="2">
+                <coordinates>-74.00134,40.652594,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="9">
+            <name>GW-AP-02</name>
+            <description><![CDATA[<b>GW-AP-02</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 10%<br/>Overlap with neighbours: 85%]]></description>
+            <styleUrl>#10</styleUrl>
+            <Point id="8">
+                <coordinates>-74.000595,40.654235,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="15">
+            <name>GW-AP-03</name>
+            <description><![CDATA[<b>GW-AP-03</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 7%<br/>Overlap with neighbours: 61%]]></description>
+            <styleUrl>#16</styleUrl>
+            <Point id="14">
+                <coordinates>-73.997711,40.65421,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="21">
+            <name>GW-AP-04</name>
+            <description><![CDATA[<b>GW-AP-04</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 2%<br/>Overlap with neighbours: 82%]]></description>
+            <styleUrl>#22</styleUrl>
+            <Point id="20">
+                <coordinates>-73.99563,40.6487,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="27">
+            <name>GW-AP-05</name>
+            <description><![CDATA[<b>GW-AP-05</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 238 Wh (demand 240 Wh)<br/>Shade: 2%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 4%<br/>Overlap with neighbours: 76%]]></description>
+            <styleUrl>#28</styleUrl>
+            <Point id="26">
+                <coordinates>-73.994885,40.650341,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="33">
+            <name>GW-AP-06</name>
+            <description><![CDATA[<b>GW-AP-06</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 4%<br/>Overlap with neighbours: 82%]]></description>
+            <styleUrl>#34</styleUrl>
+            <Point id="32">
+                <coordinates>-73.993426,40.651427,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="39">
+            <name>GW-AP-07</name>
+            <description><![CDATA[<b>GW-AP-07</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 3%<br/>Overlap with neighbours: 64%]]></description>
+            <styleUrl>#40</styleUrl>
+            <Point id="38">
+                <coordinates>-73.993418,40.651976,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="45">
+            <name>GW-AP-08</name>
+            <description><![CDATA[<b>GW-AP-08</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 10%<br/>Overlap with neighbours: 72%]]></description>
+            <styleUrl>#46</styleUrl>
+            <Point id="44">
+                <coordinates>-73.992738,40.649224,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="51">
+            <name>GW-AP-09</name>
+            <description><![CDATA[<b>GW-AP-09</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 8%<br/>Overlap with neighbours: 65%]]></description>
+            <styleUrl>#52</styleUrl>
+            <Point id="50">
+                <coordinates>-73.99259,40.659108,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="57">
+            <name>GW-AP-10</name>
+            <description><![CDATA[<b>GW-AP-10</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 6%<br/>Overlap with neighbours: 55%]]></description>
+            <styleUrl>#58</styleUrl>
+            <Point id="56">
+                <coordinates>-73.991189,40.65635,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="63">
+            <name>GW-AP-11</name>
+            <description><![CDATA[<b>GW-AP-11</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 1%<br/>Overlap with neighbours: 10%]]></description>
+            <styleUrl>#64</styleUrl>
+            <Point id="62">
+                <coordinates>-73.990435,40.65854,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="69">
+            <name>GW-AP-12</name>
+            <description><![CDATA[<b>GW-AP-12</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 242 Wh (demand 240 Wh)<br/>Shade: 0%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 0%<br/>Overlap with neighbours: 32%]]></description>
+            <styleUrl>#70</styleUrl>
+            <Point id="68">
+                <coordinates>-73.989706,40.659083,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="75">
+            <name>GW-AP-13</name>
+            <description><![CDATA[<b>GW-AP-13</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 231 Wh (demand 240 Wh)<br/>Shade: 5%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 3%<br/>Overlap with neighbours: 65%]]></description>
+            <styleUrl>#76</styleUrl>
+            <Point id="74">
+                <coordinates>-73.987617,40.654122,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="81">
+            <name>GW-AP-14</name>
+            <description><![CDATA[<b>GW-AP-14</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 239 Wh (demand 240 Wh)<br/>Shade: 1%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 4%<br/>Overlap with neighbours: 56%]]></description>
+            <styleUrl>#82</styleUrl>
+            <Point id="80">
+                <coordinates>-73.986167,40.654659,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="87">
+            <name>GW-AP-15</name>
+            <description><![CDATA[<b>GW-AP-15</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 234 Wh (demand 240 Wh)<br/>Shade: 3%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 4%<br/>Overlap with neighbours: 80%]]></description>
+            <styleUrl>#88</styleUrl>
+            <Point id="86">
+                <coordinates>-73.985488,40.651907,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="93">
+            <name>GW-AP-16</name>
+            <description><![CDATA[<b>GW-AP-16</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 230 Wh (demand 240 Wh)<br/>Shade: 5%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 2%<br/>Overlap with neighbours: 20%]]></description>
+            <styleUrl>#94</styleUrl>
+            <Point id="92">
+                <coordinates>-73.985413,40.656849,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="99">
+            <name>GW-AP-17</name>
+            <description><![CDATA[<b>GW-AP-17</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 237 Wh (demand 240 Wh)<br/>Shade: 2%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 10%<br/>Overlap with neighbours: 71%]]></description>
+            <styleUrl>#100</styleUrl>
+            <Point id="98">
+                <coordinates>-73.984079,40.649698,0.0</coordinates>
+            </Point>
+        </Placemark>
+        <Placemark id="105">
+            <name>GW-AP-18</name>
+            <description><![CDATA[<b>GW-AP-18</b><br/>Bands: 2.4GHz, 5GHz, 6GHz<br/>Solar: marginal<br/>Daily harvest: 198 Wh (demand 240 Wh)<br/>Shade: 18%<br/>Panel: S (180.0°), tilt 40.0°<br/>Coverage efficiency: 7%<br/>Overlap with neighbours: 72%]]></description>
+            <styleUrl>#106</styleUrl>
+            <Point id="104">
+                <coordinates>-73.981908,40.650228,0.0</coordinates>
+            </Point>
+        </Placemark>
+    </Document>
+</kml>
