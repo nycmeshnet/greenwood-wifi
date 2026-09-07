@@ -19,7 +19,11 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest
+        run: pip install -r requirements.txt pytest pyyaml
+
+      - name: Validate workflow YAML
+        run: |
+          python -c "import yaml,glob; [yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]; print('workflows YAML OK')"
 
       - name: Run tests
         run: python -m pytest tests/ -v
