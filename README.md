@@ -18,7 +18,7 @@ Given the rated range of an access point on each frequency band, the tool:
 
 ## Zero-host cloud run (no install, no server to manage)
 
-This branch (`zero-host-ui`) adds a GitHub-native path — GitHub does the compute, GitHub hosts the map.
+GitHub does the compute and hosts the map — no Docker, no VPS, no API keys.
 
 ### Option A — run in the cloud via Actions (fully featured)
 
@@ -34,24 +34,28 @@ This branch (`zero-host-ui`) adds a GitHub-native path — GitHub does the compu
 | relation-id | 1370699 (Green-Wood) | `--relation-id` |
 | panel-w / load-w / derating | 100 / 10 / 0.80 | `--panel-w` / `--load-w` / `--derating` |
 | tilt / freeze-thresh-f | 40 / 34 | `--tilt` / `--freeze-thresh-f` |
-| candidate-spacing / ilp-spacing / test-spacing (m) | 20 / 20 / 10 | `--candidate-spacing` etc. |
-| ap-height / rx-height / shade-radius (m) | 1.0 / 1.524 / 50 | `--ap-height` etc. |
-| marginal-penalty | 1.5 | `--marginal-penalty` |
-| publish | true | deploy results to `gh-pages` |
+| candidate-spacing / ilp-spacing / test-spacing (m, advanced) | 20 / 20 / 10 | `--candidate-spacing` etc. |
+| mount-height / client-height (m) | 2.0 / 2.0 | `--mount-height-m` / `--client-height-m` |
+| shade-radius (m, advanced, 0=auto) | 50 | `--shade-radius` |
+| marginal-penalty (advanced) | 1.5 | `--marginal-penalty` |
+| refresh-cache | false | force live re-fetch (`--no-cache`) even when cache is fresh |
+| publish | true | deploy results to the GitHub Pages site |
 
-4. Click **Run workflow**. A `ubuntu-latest` runner installs `requirements.txt` and runs `python main.py …`. Typical run: 3–8 min.
-5. When green, download results from the run page under **Artifacts** (`ap-placement-<N>`): `ap_placement.json`, `ap_placement.kml`, `summary.md`.
-6. If `publish=true`, the same files + viewer are pushed to the `gh-pages` branch and served at:
-   `https://<org>.github.io/<repo>/` (enable Pages → Deploy from branch → `gh-pages` once).
+4. Click **Run workflow**. An `ubuntu-latest` runner installs `requirements.txt` and runs `python main.py …`. Typical run: 5–10 min cold on Actions (dependency install + full solve); ~1 min locally with a warm `data/cache/`.
+5. When green, download results from the run page under **Artifacts** (`ap-placement-<N>`, 90-day retention): `ap_placement.json`, `ap_placement.kml`, `summary.md`.
+6. If `publish=true`, the same files + viewer are deployed to the GitHub Pages site at
+   [https://nycmeshnet.github.io/greenwood-wifi/](https://nycmeshnet.github.io/greenwood-wifi/) (one-time setup: Settings → Pages → Source: **GitHub Actions**).
 
-No Docker, no VPS, no API keys. Public repos get effectively unlimited Actions minutes for this.
+Public repos get effectively unlimited Actions minutes for this.
+
+_Forked this repo? Replace `nycmeshnet/greenwood-wifi` in the links above with your `org/repo` — the workflow, viewer, and Pages deploy are org-agnostic and work unchanged._
 
 ### Option B — view results (no compute)
 
-* **Hosted map:** open the Pages URL above. Green = viable, yellow = marginal. Table + per-AP Google Maps links included.
+* **Hosted map:** open [https://nycmeshnet.github.io/greenwood-wifi/](https://nycmeshnet.github.io/greenwood-wifi/). Green = viable, yellow = marginal. Table + per-AP Google Maps links included.
 * **Local file:** open `viewer/index.html` directly in a browser (double-click works). It tries `./ap_placement.json`, then `../output/ap_placement.json`. Use the file picker to load any run's JSON.
-* **Google Earth:** Earth Web has no `?kml=` deep-link, so download `ap_placement.kml` and drag it into [earth.google.com](https://earth.google.com). In Earth Desktop use Add → Network Link with the Pages KML URL (`https://<org>.github.io/<repo>/ap_placement.kml`).
-* **Other open tools:** `Open in geojson.io` button (works for ~40 points), or uMap → Import from URL with the Pages JSON URL, or CSV import into Google My Maps.
+* **Google Earth:** Earth Web has no `?kml=` deep-link, so download `ap_placement.kml` and drag it into [earth.google.com](https://earth.google.com). In Earth Desktop use Add → Network Link with [https://nycmeshnet.github.io/greenwood-wifi/ap_placement.kml](https://nycmeshnet.github.io/greenwood-wifi/ap_placement.kml).
+* **Other open tools:** `Open in geojson.io` button (works for ~40 points), or uMap → Import from URL with [https://nycmeshnet.github.io/greenwood-wifi/ap_placement.json](https://nycmeshnet.github.io/greenwood-wifi/ap_placement.json).
 
 ## Hardware assumptions (per AP node, all tunable via flags)
 
@@ -135,7 +139,7 @@ Tests cover coordinate ordering, grid transforms, RF physics, solar budget logic
 ```
 ├── .github/workflows/
 │   ├── tests.yml           CI unit tests
-│   └── run.yml             Zero-host dispatch: inputs → main.py → artifacts + gh-pages
+│   └── run.yml             Zero-host dispatch: inputs → main.py → artifacts + Pages deploy
 ├── viewer/
 │   └── index.html          Static Leaflet map (OSM tiles, no build, no keys)
 ├── data/

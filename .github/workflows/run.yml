@@ -79,7 +79,7 @@ on:
         default: false
         required: false
       publish:
-        description: "Publish results to gh-pages?"
+        description: "Publish results to GitHub Pages site?"
         type: boolean
         default: true
         required: false
@@ -97,10 +97,13 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5.6.0
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -168,7 +171,7 @@ jobs:
           fi
 
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ap-placement-${{ github.run_number }}
           path: |
@@ -189,11 +192,13 @@ jobs:
           {"run_number": ${{ github.run_number }}, "ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}
           EOF
 
-      - name: Publish to gh-pages
+      - name: Upload Pages artifact
         if: inputs.publish == true
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/upload-pages-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./pages
-          keep_files: false
+          path: ./pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        if: inputs.publish == true
+        uses: actions/deploy-pages@v5
