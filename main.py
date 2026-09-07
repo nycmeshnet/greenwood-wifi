@@ -53,7 +53,7 @@ import optimize.placer as placer_module
 from constants import (
     FT_PER_M,
     CANDIDATE_SPACING_M, TEST_SPACING_M, ILP_TEST_SPACING_M, PATH_BUFFER_M,
-    PANEL_TILT_DEG,
+    PANEL_TILT_DEG, DEFAULT_TREE_HEIGHT_M,
 )
 
 
@@ -188,63 +188,68 @@ outputs:
 
     parser.add_argument(
         "--range-2g", type=float, default=2000.0, metavar="FT",
-        help="Rated range of the AP on 2.4 GHz in feet (default: 2000)",
+        help="AP open-field rated range on 2.4 GHz, feet (default: 2000). Trees shrink this via ITU-R P.833. Larger = fewer APs.",
     )
     parser.add_argument(
         "--range-5g", type=float, default=1250.0, metavar="FT",
-        help="Rated range of the AP on 5 GHz in feet (default: 1250)",
+        help="AP open-field rated range on 5 GHz, feet (default: 1250). Higher bands attenuate faster in canopy.",
     )
 
     parser.add_argument(
         "--range-6g", type=float, default=None, metavar="FT",
         help=(
-            "Rated range of the AP on 6 GHz in feet. "
-            "Omit this flag entirely if the AP does not support 6 GHz."
+            "AP open-field rated range on 6 GHz, feet. "
+            "Omit entirely if the AP is not tri-band."
         ),
     )
     parser.add_argument(
         "--coverage", choices=["full", "paths"], default="full",
         help=(
-            "Coverage target for the optimiser. "
-            "'full' — every point inside the cemetery boundary (default). "
-            "'paths' — only areas within 15 ft of walkable paths."
+            "'full' = cover every point inside the boundary (default). "
+            "'paths' = cover only ground within 15 ft of walkable paths (faster, fewer APs)."
         ),
     )
     parser.add_argument(
         "--wigle-key", default=None, metavar="KEY",
         help=(
-            "WiGLE.net API key to layer in existing RF interference data. "
-            "Optional — omit to skip interference modelling."
+            "Optional WiGLE.net API key to overlay existing RF interference. "
+            "Omit to skip (free account required if used)."
         ),
     )
     parser.add_argument(
         "--no-cache", action="store_true",
-        help="Re-download all external data even if a local cache exists.",
+        help="Ignore data/cache/ and re-download OSM, USGS elevation, and NASA solar.",
     )
     # --- Site ---
     parser.add_argument(
         "--relation-id", type=int, default=1370699, metavar="ID",
-        help="OSM relation ID for site boundary (default: 1370699 Green-Wood)",
+        help="OpenStreetMap relation ID defining the site boundary (default 1370699 = Green-Wood). Change to port to a new site.",
     )
     # --- Hardware / solar ---
-    parser.add_argument("--panel-w", type=float, default=100.0, help="Panel rated W (default: 100)")
-    parser.add_argument("--load-w", type=float, default=10.0, help="Continuous AP load W (default: 10)")
-    parser.add_argument("--derating", type=float, default=0.80, help="Derating factor 0-1 (default: 0.80)")
-    parser.add_argument("--tilt", type=float, default=40.0, help="Panel tilt deg (default: 40)")
+    parser.add_argument("--panel-w", type=float, default=100.0, metavar="W", help="Solar panel nameplate watts (default: 100). Harvest = GHI/1000 x panel x (1-shade) x derating.")
+    parser.add_argument("--load-w", type=float, default=10.0, metavar="W", help="AP continuous draw in watts (default: 10). Daily demand = load x 24h (default 240 Wh/day).")
+    parser.add_argument("--derating", type=float, default=0.80, metavar="FACTOR", help="Temperature/wiring/soiling losses as 0-1 factor (default: 0.80).")
+    parser.add_argument("--tilt", type=float, default=40.0, metavar="DEG", help="Panel tilt from horizontal in degrees, written to outputs (default: 40, ~site latitude). Azimuth is auto-optimized per site.")
     parser.add_argument(
-        "--freeze-thresh-f", type=float, default=34.0,
-        help="Avg monthly temp below which APs can't operate F (default: 34)",
+        "--freeze-thresh-f", type=float, default=34.0, metavar="F",
+        help="Months averaging below this temp are excluded — batteries can't run through freezes (default: 34 F, above 32 to allow for nightly freezes).",
     )
-    # --- Grid / RF geometry ---
-    parser.add_argument("--candidate-spacing", type=float, default=20.0, help="Candidate grid m (default: 20)")
-    parser.add_argument("--ilp-spacing", type=float, default=20.0, help="ILP test grid m (default: 20)")
-    parser.add_argument("--test-spacing", type=float, default=10.0, help="Report grid m (default: 10)")
-    parser.add_argument("--ap-height", type=float, default=1.0, help="AP height m (default: 1.0)")
-    parser.add_argument("--rx-height", type=float, default=1.524, help="RX height m (default: 1.524)")
-    parser.add_argument("--shade-radius", type=float, default=50.0, help="Shade radius m (default: 50)")
+    # --- Grid / solver (advanced: auto-scaled, leave alone unless the solve is too slow) ---
+    parser.add_argument("--candidate-spacing", type=float, default=20.0, metavar="M", help="[advanced] Grid of possible AP spots in metres (default: 20). Effective spacing = max(this, range/10). Smaller = better placement, ~4x more work.")
+    parser.add_argument("--ilp-spacing", type=float, default=20.0, metavar="M", help="[advanced] Grid the optimizer must cover in metres (default: 20). Effective spacing = max(this, range/10). Smaller = tighter guarantees, much slower HiGHS solve.")
+    parser.add_argument("--test-spacing", type=float, default=10.0, metavar="M", help="[advanced] Fine grid for reporting only in metres (default: 10). Does not affect the solve.")
     parser.add_argument(
-        "--marginal-penalty", type=float, default=1.5,
-        help="ILP weight for marginal-solar candidates (default: 1.5)",
+        "--mount-height-m", "--ap-height", dest="ap_height", type=float, default=2.0, metavar="M",
+        help="AP pole mount height above ground in metres (default: 2.0). --ap-height is a deprecated alias.",
+    )
+    parser.add_argument(
+        "--client-height-m", "--rx-height", dest="rx_height", type=float, default=2.0, metavar="M",
+        help="Client device height above ground in metres, e.g. phone in hand (default: 2.0). --rx-height is a deprecated alias.",
+    )
+    parser.add_argument("--shade-radius", type=float, default=50.0, metavar="M", help="[advanced] Trees within this radius count toward shade (default: 50). Pass 0 to auto-compute as max(30, 3x tree height).")
+    parser.add_argument(
+        "--marginal-penalty", type=float, default=1.5, metavar="X",
+        help="[advanced] Policy knob: ILP cost multiplier for shade-marginal spots (default: 1.5). 1.0 = treat equal to viable, 2.0 = strongly avoid even if it adds APs.",
     )
     return parser
 
@@ -257,6 +262,11 @@ def apply_overrides(args) -> dict:
     import time, so we patch each consumer module explicitly).
     """
     eff = {}
+    # 0 = auto: shadow length ~= tree height / tan(sun elev); ~3x height covers
+    # low shoulder-season sun. Floor at 30 m so short trees still see neighbours.
+    shade_radius = args.shade_radius
+    if shade_radius <= 0:
+        shade_radius = max(30.0, 3.0 * DEFAULT_TREE_HEIGHT_M)
     # constants module (source of truth for fresh imports)
     constants.CEMETERY_RELATION_ID = args.relation_id
     constants.PANEL_RATED_W = args.panel_w
@@ -270,7 +280,7 @@ def apply_overrides(args) -> dict:
     constants.TEST_SPACING_M = args.test_spacing
     constants.AP_HEIGHT_M = args.ap_height
     constants.RX_HEIGHT_M = args.rx_height
-    constants.SHADE_RADIUS_M = args.shade_radius
+    constants.SHADE_RADIUS_M = shade_radius
     constants.MARGINAL_PENALTY = args.marginal_penalty
 
     # data.osm (bound `from constants import` at import time)
@@ -286,13 +296,13 @@ def apply_overrides(args) -> dict:
     # so main.py passes radius explicitly — patch here as well for direct callers)
     terrain_module.AP_HEIGHT_M = args.ap_height
     terrain_module.RX_HEIGHT_M = args.rx_height
-    terrain_module.SHADE_RADIUS_M = args.shade_radius
+    terrain_module.SHADE_RADIUS_M = shade_radius
     for fn_name in ("shade_by_azimuth", "shade_fraction"):
         fn = getattr(terrain_module.TerrainModel, fn_name, None)
         if fn is not None and fn.__defaults__:
             # last default is radius_m for both functions
             defaults = list(fn.__defaults__)
-            defaults[-1] = args.shade_radius
+            defaults[-1] = shade_radius
             fn.__defaults__ = tuple(defaults)
 
     # optimize.placer
@@ -309,6 +319,9 @@ def apply_overrides(args) -> dict:
         "candidate_spacing_m": args.candidate_spacing,
         "ilp_spacing_m": args.ilp_spacing,
         "test_spacing_m": args.test_spacing,
+        "shade_radius_m": shade_radius,
+        "ap_height_m": args.ap_height,
+        "rx_height_m": args.rx_height,
     }
     return eff
 
@@ -349,7 +362,9 @@ def main():
     print(f"Coverage mode: {args.coverage}")
     print(f"Site relation: {eff['relation_id']}  "
           f"Panel: {eff['panel_w']:.0f}W load {eff['load_w']:.1f}W "
-          f"derate {eff['derating']:.2f} tilt {eff['tilt']:.0f}°\n")
+          f"derate {eff['derating']:.2f} tilt {eff['tilt']:.0f}°  "
+          f"mount {eff['ap_height_m']:.1f}m client {eff['rx_height_m']:.1f}m  "
+          f"shade-r {eff['shade_radius_m']:.0f}m\n")
 
     # ------------------------------------------------------------------
     # 1. Fetch data
@@ -430,7 +445,7 @@ def main():
     t_solar = time.time()
     candidate_meta = []
     for lat, lon in candidates:
-        dir_shade = terrain.shade_by_azimuth(lat, lon, radius_m=args.shade_radius)
+        dir_shade = terrain.shade_by_azimuth(lat, lon, radius_m=eff["shade_radius_m"])
         shade = float(min(dir_shade.sum(), 1.0))
         harvest = daily_harvest_wh(design_ghi, shade)
         status = solar_status(harvest)

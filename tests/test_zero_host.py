@@ -15,8 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 RUN_YML = ROOT / ".github" / "workflows" / "run.yml"
 VIEWER = ROOT / "viewer" / "index.html"
 
-# Workflow inputs that intentionally have no CLI flag.
-NON_CLI_INPUTS = {"publish"}
+# Workflow inputs that intentionally have no direct --<name> CLI flag.
+NON_CLI_INPUTS = {"publish", "refresh-cache"}
+
+# Workflow input name -> CLI flag (most are 1:1; heights use -m suffix).
+INPUT_TO_FLAG = {
+    "mount-height": "--mount-height-m",
+    "client-height": "--client-height-m",
+}
 
 
 def _read_run_yml() -> str:
@@ -67,8 +73,9 @@ def test_workflow_inputs_match_cli_flags():
     for name in defined:
         if name in NON_CLI_INPUTS:
             continue
-        assert f"--{name}" in cli_opts, (
-            f"workflow input '{name}' has no --{name} flag in main.build_parser()"
+        flag = INPUT_TO_FLAG.get(name, f"--{name}")
+        assert flag in cli_opts, (
+            f"workflow input '{name}' has no {flag} flag in main.build_parser()"
         )
 
 
@@ -80,12 +87,27 @@ def test_workflow_referenced_inputs_are_defined():
     assert used <= defined, f"undefined inputs referenced: {used - defined}"
 
 
+def test_baseline_cache_committed():
+    """data/cache/ baseline must be tracked so Actions runs offline."""
+    from subprocess import run, PIPE
+    r = run(["git", "ls-files", "data/cache"], capture_output=True, text=True, cwd=ROOT)
+    tracked = [l for l in r.stdout.splitlines() if l.strip()]
+    assert len(tracked) >= 5, (
+        f"expected baseline cache committed (boundary/trees/buildings/paths/elevation/solar), got {tracked}. "
+        "Run: git add -f data/cache && commit, else Actions fails when Overpass is down."
+    )
+
+
 def test_cli_defaults_parse_cleanly():
     """Bare parse_args([]) must succeed and give numeric defaults."""
     parser = _parser()
     args = parser.parse_args([])
     for attr in ("range_2g", "range_5g", "panel_w", "load_w", "derating"):
         assert isinstance(getattr(args, attr), float), attr
+    assert args.ap_height == 2.0 and args.rx_height == 2.0
+    # Deprecated aliases still work.
+    aliased = parser.parse_args(["--ap-height", "1.5", "--rx-height", "1.0"])
+    assert aliased.ap_height == 1.5 and aliased.rx_height == 1.0
     # Quoted strings like "'2000'" must fail — guards the original bug shape.
     with_args = ["--range-2g", "'2000'"]
     try:
@@ -94,6 +116,19 @@ def test_cli_defaults_parse_cleanly():
         pass  # argparse exits(2) on invalid float — expected
     else:
         raise AssertionError("parser accepted quoted float \"'2000'\"; it must reject it")
+
+
+def test_shade_radius_auto():
+    """shade-radius 0 means auto: max(30, 3x tree height)."""
+    from main import apply_overrides
+    import constants
+    base = constants.SHADE_RADIUS_M
+    args = _parser().parse_args(["--shade-radius", "0"])
+    try:
+        eff = apply_overrides(args)
+        assert eff["shade_radius_m"] == max(30.0, 3.0 * 15.0)
+    finally:
+        constants.SHADE_RADIUS_M = base
 
 
 def test_apply_overrides_patches_and_restores():

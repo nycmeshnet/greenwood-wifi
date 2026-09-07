@@ -4,75 +4,80 @@ on:
   workflow_dispatch:
     inputs:
       range-2g:
-        description: "2.4 GHz rated range (ft)"
+        description: "2.4 GHz open-field range, ft (larger = fewer APs)"
         default: "2000"
         required: true
       range-5g:
-        description: "5 GHz rated range (ft)"
+        description: "5 GHz open-field range, ft"
         default: "1250"
         required: true
       range-6g:
-        description: "6 GHz rated range (ft) — empty = disabled"
+        description: "6 GHz range, ft — empty = tri-band off"
         default: ""
         required: false
       coverage:
-        description: "Coverage target"
+        description: "full = whole boundary, paths = within 15 ft of paths"
         type: choice
         options: [full, paths]
         default: full
         required: true
       relation-id:
-        description: "OSM relation ID for site boundary"
+        description: "OSM relation ID for site boundary (1370699 = Green-Wood)"
         default: "1370699"
         required: true
       panel-w:
-        description: "Panel rated W"
+        description: "Panel nameplate watts"
         default: "100"
         required: true
       load-w:
-        description: "Continuous AP load W"
+        description: "AP draw watts (demand = load x 24h)"
         default: "10"
         required: true
       derating:
-        description: "Derating factor 0-1"
+        description: "Loss factor 0-1 (temp/wiring/soiling)"
         default: "0.80"
         required: true
       tilt:
-        description: "Panel tilt deg"
+        description: "Panel tilt deg (~latitude optimal)"
         default: "40"
         required: true
       freeze-thresh-f:
-        description: "Freeze threshold F"
+        description: "Months colder than this F are excluded"
         default: "34"
         required: true
       candidate-spacing:
-        description: "Candidate grid m"
+        description: "[advanced] Possible-spot grid, m (auto-grows with range)"
         default: "20"
         required: true
       ilp-spacing:
-        description: "ILP test grid m"
+        description: "[advanced] Must-cover grid, m (smaller = slower solve)"
         default: "20"
         required: true
       test-spacing:
-        description: "Report grid m"
+        description: "[advanced] Reporting grid only, m"
         default: "10"
         required: true
-      ap-height:
-        description: "AP height m"
-        default: "1.0"
+      mount-height:
+        description: "AP pole mount height, m"
+        default: "2.0"
         required: true
-      rx-height:
-        description: "RX height m"
-        default: "1.524"
+      client-height:
+        description: "Client device height, m (phone in hand)"
+        default: "2.0"
         required: true
       shade-radius:
-        description: "Shade radius m"
+        description: "[advanced] Tree shade radius, m (0 = auto)"
         default: "50"
         required: true
       marginal-penalty:
-        description: "ILP marginal penalty"
+        description: "[advanced] 1.0 = accept marginal shade, 2.0 = strongly avoid"
         default: "1.5"
         required: true
+      refresh-cache:
+        description: "Re-fetch OSM/USGS/NASA live (off = use committed baseline cache)"
+        type: boolean
+        default: false
+        required: false
       publish:
         description: "Publish results to gh-pages?"
         type: boolean
@@ -117,9 +122,12 @@ jobs:
           ARGS="$ARGS --candidate-spacing ${{ inputs.candidate-spacing }}"
           ARGS="$ARGS --ilp-spacing ${{ inputs.ilp-spacing }}"
           ARGS="$ARGS --test-spacing ${{ inputs.test-spacing }}"
-          ARGS="$ARGS --ap-height ${{ inputs.ap-height }} --rx-height ${{ inputs.rx-height }}"
+          ARGS="$ARGS --mount-height-m ${{ inputs.mount-height }} --client-height-m ${{ inputs.client-height }}"
           ARGS="$ARGS --shade-radius ${{ inputs.shade-radius }}"
           ARGS="$ARGS --marginal-penalty ${{ inputs.marginal-penalty }}"
+          if [ "${{ inputs.refresh-cache }}" = "true" ]; then
+            ARGS="$ARGS --no-cache"
+          fi
           echo "Running: python main.py $ARGS"
           python main.py $ARGS
 

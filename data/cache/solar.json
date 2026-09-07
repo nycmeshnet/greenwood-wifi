@@ -1,0 +1,62 @@
+{
+  "1": {
+    "ghi_wh_per_day": 1870.6,
+    "avg_temp_f": 36.9,
+    "month_name": "January"
+  },
+  "2": {
+    "ghi_wh_per_day": 2626.3,
+    "avg_temp_f": 36.9,
+    "month_name": "February"
+  },
+  "3": {
+    "ghi_wh_per_day": 3966.1,
+    "avg_temp_f": 42.2,
+    "month_name": "March"
+  },
+  "4": {
+    "ghi_wh_per_day": 4880.8,
+    "avg_temp_f": 49.2,
+    "month_name": "April"
+  },
+  "5": {
+    "ghi_wh_per_day": 6063.8,
+    "avg_temp_f": 57.2,
+    "month_name": "May"
+  },
+  "6": {
+    "ghi_wh_per_day": 6340.4,
+    "avg_temp_f": 67.9,
+    "month_name": "June"
+  },
+  "7": {
+    "ghi_wh_per_day": 6079.3,
+    "avg_temp_f": 76.2,
+    "month_name": "July"
+  },
+  "8": {
+    "ghi_wh_per_day": 5237.9,
+    "avg_temp_f": 75.4,
+    "month_name": "August"
+  },
+  "9": {
+    "ghi_wh_per_day": 4387.1,
+    "avg_temp_f": 69.5,
+    "month_name": "September"
+  },
+  "10": {
+    "ghi_wh_per_day": 3026.5,
+    "avg_temp_f": 60.2,
+    "month_name": "October"
+  },
+  "11": {
+    "ghi_wh_per_day": 2340.6,
+    "avg_temp_f": 49.7,
+    "month_name": "November"
+  },
+  "12": {
+    "ghi_wh_per_day": 1602.3,
+    "avg_temp_f": 41.9,
+    "month_name": "December"
+  }
+}
