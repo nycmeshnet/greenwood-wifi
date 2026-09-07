@@ -158,6 +158,7 @@ Tests cover coordinate ordering, grid transforms, RF physics, solar budget logic
 
 ## Notes
 
-- External data is cached in `data/cache/` after the first run — subsequent runs are fully offline
+- External data is cached in `data/cache/` after the first run — subsequent runs are fully offline. A baseline snapshot is committed so cloud runs never depend on live Overpass.
+- **Cache freshness (lazy, no PR needed):** the Actions workflow checks the age of `data/cache/osm_trees.geojson` on every dispatch. If older than 90 days (or missing), that run re-fetches live via `--no-cache` and pushes the updated cache straight back to the same branch. Nothing updates unless somebody runs it — no cron, no PR. Pass `refresh-cache=true` to force a live re-fetch any time.
 - November and December have insufficient sun for 24/7 operation at this latitude even with a fully exposed panel; the tool flags these as shoulder months in the summary
 - The `--wigle-key` flag enables an optional RF interference layer from WiGLE.net (free account required)
