@@ -43,6 +43,13 @@ from models.power import (
 )
 from optimize.placer import optimize_placement
 from output.writer import write_placement_json, write_summary, write_kml
+import constants
+import data.osm as osm_module
+import data.solar_irradiance as solar_module
+import models.power as power_module
+import models.terrain as terrain_module
+import models.rf as rf_module
+import optimize.placer as placer_module
 from constants import (
     FT_PER_M,
     CANDIDATE_SPACING_M, TEST_SPACING_M, ILP_TEST_SPACING_M, PATH_BUFFER_M,
@@ -214,7 +221,96 @@ outputs:
         "--no-cache", action="store_true",
         help="Re-download all external data even if a local cache exists.",
     )
+    # --- Site ---
+    parser.add_argument(
+        "--relation-id", type=int, default=1370699, metavar="ID",
+        help="OSM relation ID for site boundary (default: 1370699 Green-Wood)",
+    )
+    # --- Hardware / solar ---
+    parser.add_argument("--panel-w", type=float, default=100.0, help="Panel rated W (default: 100)")
+    parser.add_argument("--load-w", type=float, default=10.0, help="Continuous AP load W (default: 10)")
+    parser.add_argument("--derating", type=float, default=0.80, help="Derating factor 0-1 (default: 0.80)")
+    parser.add_argument("--tilt", type=float, default=40.0, help="Panel tilt deg (default: 40)")
+    parser.add_argument(
+        "--freeze-thresh-f", type=float, default=34.0,
+        help="Avg monthly temp below which APs can't operate F (default: 34)",
+    )
+    # --- Grid / RF geometry ---
+    parser.add_argument("--candidate-spacing", type=float, default=20.0, help="Candidate grid m (default: 20)")
+    parser.add_argument("--ilp-spacing", type=float, default=20.0, help="ILP test grid m (default: 20)")
+    parser.add_argument("--test-spacing", type=float, default=10.0, help="Report grid m (default: 10)")
+    parser.add_argument("--ap-height", type=float, default=1.0, help="AP height m (default: 1.0)")
+    parser.add_argument("--rx-height", type=float, default=1.524, help="RX height m (default: 1.524)")
+    parser.add_argument("--shade-radius", type=float, default=50.0, help="Shade radius m (default: 50)")
+    parser.add_argument(
+        "--marginal-penalty", type=float, default=1.5,
+        help="ILP weight for marginal-solar candidates (default: 1.5)",
+    )
     return parser
+
+
+def apply_overrides(args) -> dict:
+    """Patch constants + already-imported module globals so CLI/Actions inputs take effect.
+
+    Returns dict of effective values for logging. Must be called before any
+    pipeline work (models use `from constants import X` bindings evaluated at
+    import time, so we patch each consumer module explicitly).
+    """
+    eff = {}
+    # constants module (source of truth for fresh imports)
+    constants.CEMETERY_RELATION_ID = args.relation_id
+    constants.PANEL_RATED_W = args.panel_w
+    constants.LOAD_W = args.load_w
+    constants.DERATING = args.derating
+    constants.DEMAND_WH_PER_DAY = args.load_w * 24.0
+    constants.PANEL_TILT_DEG = args.tilt
+    constants.FREEZE_THRESHOLD_F = args.freeze_thresh_f
+    constants.CANDIDATE_SPACING_M = args.candidate_spacing
+    constants.ILP_TEST_SPACING_M = args.ilp_spacing
+    constants.TEST_SPACING_M = args.test_spacing
+    constants.AP_HEIGHT_M = args.ap_height
+    constants.RX_HEIGHT_M = args.rx_height
+    constants.SHADE_RADIUS_M = args.shade_radius
+    constants.MARGINAL_PENALTY = args.marginal_penalty
+
+    # data.osm (bound `from constants import` at import time)
+    osm_module.CEMETERY_RELATION_ID = args.relation_id
+
+    # models.power
+    power_module.PANEL_RATED_W = args.panel_w
+    power_module.LOAD_W = args.load_w
+    power_module.DERATING = args.derating
+    power_module.DEMAND_WH_PER_DAY = args.load_w * 24.0
+
+    # models.terrain (heights read at call time; radius defaults bound at def time
+    # so main.py passes radius explicitly — patch here as well for direct callers)
+    terrain_module.AP_HEIGHT_M = args.ap_height
+    terrain_module.RX_HEIGHT_M = args.rx_height
+    terrain_module.SHADE_RADIUS_M = args.shade_radius
+    for fn_name in ("shade_by_azimuth", "shade_fraction"):
+        fn = getattr(terrain_module.TerrainModel, fn_name, None)
+        if fn is not None and fn.__defaults__:
+            # last default is radius_m for both functions
+            defaults = list(fn.__defaults__)
+            defaults[-1] = args.shade_radius
+            fn.__defaults__ = tuple(defaults)
+
+    # optimize.placer
+    placer_module.MARGINAL_PENALTY = args.marginal_penalty
+
+    eff = {
+        "relation_id": args.relation_id,
+        "panel_w": args.panel_w,
+        "load_w": args.load_w,
+        "demand_wh": args.load_w * 24.0,
+        "derating": args.derating,
+        "tilt": args.tilt,
+        "freeze_thresh_f": args.freeze_thresh_f,
+        "candidate_spacing_m": args.candidate_spacing,
+        "ilp_spacing_m": args.ilp_spacing,
+        "test_spacing_m": args.test_spacing,
+    }
+    return eff
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +320,10 @@ outputs:
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    eff = apply_overrides(args)
+    CAND_SPACING = eff["candidate_spacing_m"]
+    ILP_SPACING_BASE = args.ilp_spacing
+    TEST_SPACING = eff["test_spacing_m"]
 
     if args.no_cache:
         cache_dir = os.path.join("data", "cache")
@@ -241,12 +341,15 @@ def main():
 
     # At large ranges the constraint matrix becomes dense (density ≈ π·r²/area).
     # Increasing grid spacing reduces problem size as spacing², keeping IPM tractable.
-    adaptive_cand_m = max(CANDIDATE_SPACING_M, primary_range_m / 10)
-    adaptive_ilp_m  = max(ILP_TEST_SPACING_M,  primary_range_m / 10)
+    adaptive_cand_m = max(CAND_SPACING, primary_range_m / 10)
+    adaptive_ilp_m  = max(ILP_SPACING_BASE,  primary_range_m / 10)
 
     print(f"\n=== Green-Wood WiFi Placement Optimizer ===")
     print(f"Bands: {[(f'{f} GHz', f'{r:.0f} ft') for f, r in bands_ft]}")
-    print(f"Coverage mode: {args.coverage}\n")
+    print(f"Coverage mode: {args.coverage}")
+    print(f"Site relation: {eff['relation_id']}  "
+          f"Panel: {eff['panel_w']:.0f}W load {eff['load_w']:.1f}W "
+          f"derate {eff['derating']:.2f} tilt {eff['tilt']:.0f}°\n")
 
     # ------------------------------------------------------------------
     # 1. Fetch data
@@ -263,8 +366,20 @@ def main():
 
     print("\n=== Fetching Solar Data ===")
     solar_data = fetch_solar_and_temperature(no_cache=args.no_cache)
-    design_month, design_ghi = get_design_month(solar_data)
-    off_season = shoulder_months(solar_data)
+    design_month, design_ghi = get_design_month(
+        solar_data,
+        freeze_threshold_f=args.freeze_thresh_f,
+        panel_w=args.panel_w,
+        load_w=args.load_w,
+        derating=args.derating,
+    )
+    off_season = shoulder_months(
+        solar_data,
+        freeze_threshold_f=args.freeze_thresh_f,
+        panel_w=args.panel_w,
+        load_w=args.load_w,
+        derating=args.derating,
+    )
     print(
         f"Design month: {MONTH_NAMES[design_month]} "
         f"(GHI {design_ghi:.0f} Wh/m²/day, "
@@ -296,14 +411,14 @@ def main():
     candidates = generate_grid(boundary, adaptive_cand_m)
 
     if args.coverage == "paths":
-        report_points = generate_path_grid(paths, boundary, TEST_SPACING_M)
+        report_points = generate_path_grid(paths, boundary, TEST_SPACING)
         ilp_points    = generate_path_grid(paths, boundary, adaptive_ilp_m)
     else:
-        report_points = generate_grid(boundary, TEST_SPACING_M)
+        report_points = generate_grid(boundary, TEST_SPACING)
         ilp_points    = generate_grid(boundary, adaptive_ilp_m)
 
     print(f"Grid spacing : candidates {adaptive_cand_m:.0f} m  "
-          f"ILP {adaptive_ilp_m:.0f} m  report {TEST_SPACING_M} m")
+          f"ILP {adaptive_ilp_m:.0f} m  report {TEST_SPACING} m")
     print(f"Candidates: {len(candidates):,}  "
           f"ILP test grid: {len(ilp_points):,}  "
           f"Report grid: {len(report_points):,}")
@@ -315,7 +430,7 @@ def main():
     t_solar = time.time()
     candidate_meta = []
     for lat, lon in candidates:
-        dir_shade = terrain.shade_by_azimuth(lat, lon)
+        dir_shade = terrain.shade_by_azimuth(lat, lon, radius_m=args.shade_radius)
         shade = float(min(dir_shade.sum(), 1.0))
         harvest = daily_harvest_wh(design_ghi, shade)
         status = solar_status(harvest)
@@ -483,7 +598,7 @@ def main():
         ap_circle_utm = Point(*ap_utms[idx]).buffer(primary_range_m)
         rated_area_m2 = ap_circle_utm.intersection(boundary_utm).area
         rated_circle_area_ft2 = max(rated_area_m2 * (FT_PER_M ** 2), 1.0)
-        covered_area_ft2 = n_covered * (TEST_SPACING_M * FT_PER_M) ** 2
+        covered_area_ft2 = n_covered * (TEST_SPACING * FT_PER_M) ** 2
         efficiency_pct = min(100.0, 100.0 * covered_area_ft2 / rated_circle_area_ft2)
 
         ap_azimuth = meta["panel_azimuth_deg"]
@@ -499,7 +614,7 @@ def main():
             "overlap_pct": round(overlap_pct, 1),
             "panel_facing": facing_label(ap_azimuth),
             "panel_azimuth_deg": ap_azimuth,
-            "panel_tilt_deg": PANEL_TILT_DEG,
+            "panel_tilt_deg": args.tilt,
             "panel_sky_score": meta["panel_sky_score"],
         })
 
