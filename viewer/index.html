@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Green-Wood WiFi AP Placement — viewer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  body { margin:0; font-family: system-ui, sans-serif; }
+  #map { height: 70vh; }
+  #panel { padding: 12px 16px; max-width: 900px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  table { border-collapse: collapse; width:100%; font-size:13px; }
+  th, td { border:1px solid #ddd; padding:4px 8px; text-align:left; }
+  .ok { color:#0a0; } .warn { color:#a80; } .bad { color:#c00; }
+  code { background:#f4f4f4; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h2>AP Placement viewer (zero-host: open this file or GitHub Pages)</h2>
+  <div class="row">
+    <span id="status">Loading <code>ap_placement.json</code>…</span>
+  </div>
+  <div class="row">
+    <input type="file" id="file" accept=".json,.geojson"/>
+    <a id="dl-kml" href="ap_placement.kml" download>Download KML (Google Earth)</a>
+    <a id="dl-json" href="ap_placement.json" download>Download JSON</a>
+    <a id="dl-summary" href="summary.md" download>summary.md</a>
+    <button id="copy-link">Copy KML NetworkLink URL</button>
+    <a id="open-geojson" href="#" target="_blank" rel="noopener">Open in geojson.io</a>
+  </div>
+  <p>
+    Google Earth Web has no <code>?kml=</code> deep-link, so: download the KML and
+    drag it into <a href="https://earth.google.com" target="_blank" rel="noopener">earth.google.com</a>,
+    or in Earth Desktop use Add → Network Link with the copied URL.
+    For OpenStreetMap editing use <a href="https://umap.openstreetmap.fr/" target="_blank" rel="noopener">uMap</a> → Import from URL.
+  </p>
+  <div class="row"><span id="counts"></span></div>
+  <table id="tbl"><thead><tr>
+    <th>Name</th><th>Lat</th><th>Lon</th><th>Solar</th><th>Harvest</th><th>Shade</th><th>Eff%</th><th>Overlap%</th><th>Maps</th>
+  </tr></thead><tbody></tbody></table>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([40.651, -73.994], 15);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19, attribution: 'Esri World Imagery', opacity: 0.45
+}).addTo(map);
+
+const COLORS = { viable: '#00aa00', marginal: '#e6a700', unviable: '#dd0000' };
+let layer = L.layerGroup().addTo(map);
+
+function markerFor(ap) {
+  const c = COLORS[ap.solar_status] || '#00aa00';
+  const m = L.circleMarker([ap.lat, ap.lon], { radius: 7, color: c, fillColor: c, fillOpacity: 0.85, weight: 2 });
+  const gmaps = `https://www.google.com/maps/search/?api=1&query=${ap.lat},${ap.lon}`;
+  m.bindPopup(`<b>${ap.name}</b><br/>Solar: ${ap.solar_status}<br/>` +
+    `Harvest: ${ap.harvest_wh} Wh (demand 240)<br/>Shade: ${ap.shade_pct}%<br/>` +
+    `Eff: ${ap.coverage_efficiency_pct}% Overlap: ${ap.overlap_pct}%<br/>` +
+    `Panel: ${ap.panel_facing} ${ap.panel_azimuth_deg}&deg; tilt ${ap.panel_tilt_deg}&deg;<br/>` +
+    `<a href="${gmaps}" target="_blank" rel="noopener">Open in Google Maps</a>`);
+  return m;
+}
+
+function render(aps) {
+  layer.clearLayers();
+  const tbody = document.querySelector('#tbl tbody');
+  tbody.innerHTML = '';
+  let nMarg = 0;
+  const bounds = [];
+  aps.forEach(ap => {
+    markerFor(ap).addTo(layer);
+    bounds.push([ap.lat, ap.lon]);
+    if (ap.solar_status === 'marginal') nMarg++;
+    const tr = document.createElement('tr');
+    const cls = ap.solar_status === 'viable' ? 'ok' : ap.solar_status === 'marginal' ? 'warn' : 'bad';
+    tr.innerHTML = `<td>${ap.name}</td><td>${ap.lat}</td><td>${ap.lon}</td>` +
+      `<td class="${cls}">${ap.solar_status}</td><td>${ap.harvest_wh}</td><td>${ap.shade_pct}</td>` +
+      `<td>${ap.coverage_efficiency_pct}</td><td>${ap.overlap_pct}</td>` +
+      `<td><a href="https://www.google.com/maps/search/?api=1&query=${ap.lat},${ap.lon}" target="_blank" rel="noopener">map</a></td>`;
+    tbody.appendChild(tr);
+  });
+  if (bounds.length) map.fitBounds(bounds, { padding: [20, 20] });
+  document.getElementById('counts').textContent = `${aps.length} APs (${aps.length - nMarg} viable, ${nMarg} marginal)`;
+  document.getElementById('status').textContent = `Loaded ${aps.length} APs. Green=viable yellow=marginal.`;
+  // geojson.io deep link (size-limited; works for ~40 points)
+  try {
+    const gj = { type: 'FeatureCollection', features: aps.map(a => ({
+      type: 'Feature', properties: { name: a.name, solar: a.solar_status },
+      geometry: { type: 'Point', coordinates: [a.lon, a.lat] } })) };
+    document.getElementById('open-geojson').href =
+      'https://geojson.io/#data=data:application/json,' + encodeURIComponent(JSON.stringify(gj));
+  } catch (e) { /* ignore */ }
+}
+
+async function loadDefault() {
+  for (const url of ['./ap_placement.json', '../output/ap_placement.json', 'ap_placement.json']) {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (r.ok) { render(await r.json()); return; }
+    } catch (e) { /* try next */ }
+  }
+  document.getElementById('status').textContent =
+    'No ap_placement.json found next to this file. Use the file picker or run the Actions workflow.';
+}
+
+document.getElementById('file').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  render(JSON.parse(await f.text()));
+});
+
+document.getElementById('copy-link').addEventListener('click', async () => {
+  const url = new URL('ap_placement.kml', window.location.href).href;
+  try { await navigator.clipboard.writeText(url); alert('Copied:\n' + url); }
+  catch { prompt('Copy KML URL:', url); }
+});
+
+loadDefault();
+</script>
+</body>
+</html>
