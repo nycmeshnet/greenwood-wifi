@@ -178,3 +178,17 @@ def test_viewer_exists_and_loads_json():
     assert "leaflet" in html.lower()
     assert "ap_placement.json" in html
     assert "earth.google.com" in html  # documents the Earth drag-drop path
+
+
+def test_stale_cache_triggers_refresh_and_autocommit():
+    """Cache older than 90 days must flip --no-cache on and push back.
+
+    Lazy refresh: no cron, no PR. The next dispatch after staleness
+    re-fetches live and commits data/cache/ to the same branch.
+    """
+    text = _read_run_yml()
+    assert 'id: cache-age' in text
+    assert '90' in text  # staleness threshold in days
+    assert 'steps.cache-age.outputs.stale' in text
+    assert 'Commit refreshed cache' in text
+    assert 'git push origin HEAD:${{ github.ref_name }}' in text
