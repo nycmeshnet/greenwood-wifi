@@ -37,12 +37,12 @@ This branch (`zero-host-ui`) adds a GitHub-native path — GitHub does the compu
 | candidate-spacing / ilp-spacing / test-spacing (m) | 20 / 20 / 10 | `--candidate-spacing` etc. |
 | ap-height / rx-height / shade-radius (m) | 1.0 / 1.524 / 50 | `--ap-height` etc. |
 | marginal-penalty | 1.5 | `--marginal-penalty` |
-| publish | true | deploy results to `gh-pages` |
+| publish | true | deploy results to the GitHub Pages site |
 
 4. Click **Run workflow**. A `ubuntu-latest` runner installs `requirements.txt` and runs `python main.py …`. Typical run: 3–8 min.
 5. When green, download results from the run page under **Artifacts** (`ap-placement-<N>`): `ap_placement.json`, `ap_placement.kml`, `summary.md`.
-6. If `publish=true`, the same files + viewer are pushed to the `gh-pages` branch and served at:
-   `https://<org>.github.io/<repo>/` (enable Pages → Deploy from branch → `gh-pages` once).
+6. If `publish=true`, the same files + viewer are deployed to the GitHub Pages site at:
+   `https://<org>.github.io/<repo>/` (one-time setup: Settings → Pages → Source: **GitHub Actions**).
 
 No Docker, no VPS, no API keys. Public repos get effectively unlimited Actions minutes for this.
 
@@ -135,7 +135,7 @@ Tests cover coordinate ordering, grid transforms, RF physics, solar budget logic
 ```
 ├── .github/workflows/
 │   ├── tests.yml           CI unit tests
-│   └── run.yml             Zero-host dispatch: inputs → main.py → artifacts + gh-pages
+│   └── run.yml             Zero-host dispatch: inputs → main.py → artifacts + Pages deploy
 ├── viewer/
 │   └── index.html          Static Leaflet map (OSM tiles, no build, no keys)
 ├── data/
